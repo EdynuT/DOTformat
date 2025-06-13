@@ -41,7 +41,7 @@ DOTFORMAT/
 │   │   ├──image.ico          # Capa do atalho na área de trabalho
 │   │   └──image.png          # Imagem para a interface do executável
 │   ├── gui.py                # Interface gráfica do usuário
-│   └── steup.py              # Cria o ambiente virtual e instala todas as dependencias
+│   └── setup.py              # Cria o ambiente virtual e instala todas as dependencias
 ├── DOTformat.spec            # Arquivo de especificação para build do projeto
 ├── requirements.txt          # Lista de bibliotecas Python necessárias para o funcionamento
 ├── LICENCE                   # licença do projeto
