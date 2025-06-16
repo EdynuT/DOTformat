@@ -2,14 +2,14 @@
 import os
 from PyInstaller.utils.hooks import collect_all
 
-# Diretório base do projeto
+# Base directory of the project
 base_dir = os.path.abspath(os.getcwd())
 src_dir = os.path.join(base_dir, 'src')
 
-# Lista de bibliotecas (nome de import, quando necessário, ajuste para o nome correto)
-# Note que algumas bibliotecas são instaladas com um nome e importadas com outro:
-# ex.: "ffmpeg-python" é importado como "ffmpeg", "pillow" como "PIL", "python-docx" como "docx", 
-#       "PyMuPDF" como "fitz", "SpeechRecognition" como "speech_recognition", etc.
+# List of libraries (import names; adjust if necessary)
+# Note that some libraries are installed with one name and imported with another:
+# e.g., "ffmpeg-python" is imported as "ffmpeg", "pillow" as "PIL", 
+#       "python-docx" as "docx", "PyMuPDF" as "fitz", "SpeechRecognition" as "speech_recognition", etc.
 libraries = [
     'altgraph',
     'cffi',
@@ -58,14 +58,14 @@ datas = []
 binaries = []
 hiddenimports = []
 
-# Coleta recursos (dados, binários e hiddenimports) de cada biblioteca
+# Collect resources (data, binaries, and hidden imports) for each library
 for lib in libraries:
     collected = collect_all(lib)
     datas += collected[0]
     binaries += collected[1]
     hiddenimports += collected[2]
 
-# Dados específicos do projeto: inclui a imagem do GUI, os scripts de conversão e o ffmpeg.exe (se necessário)
+# Project-specific data: includes the GUI image, conversion scripts, and ffmpeg.exe (if needed)
 datas += [
     (os.path.join(src_dir, 'images', 'image.png'), 'images'),
     (os.path.join(src_dir, 'conversores'), 'conversores'),

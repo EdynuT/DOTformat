@@ -1,81 +1,104 @@
 # DOTFORMAT
 
-## Visão Geral
+DOTFORMAT is a project developed by Edynu to handle various file conversion and manipulation tasks, completely free and open access.
 
-O **DOTFORMAT** é um projeto desenvolvido por Edynu para lidar com várias tarefas de conversão e manipulação de arquivos de forma totalmente gratuita e de livre acesso, como:
+## Version
 
-- **Conversão de Áudio para Texto**: Transforme arquivos de áudio em texto usando reconhecimento de voz.
+**Current Version:** 1.1.0
 
-- **Conversão de Imagens**: Converta imagens para diferentes formatos e resoluções.
+### Changelog
 
-- **PDF para PNG**: Converta documentos PDF em imagens PNG para visualização fácil.
+**1.1.0**
 
-- **PDF para Word**: Converta PDF para documentos Word editáveis.
+- Compatibility bug fixes with other systems lenguages (PT-BR)
 
-- **Gerador de QR codes**: Cria QR codes a partir do texto inserido.
+- Code tranlation for english for better general understending
 
-- **Senhas para PDFs**: Gera uma senha para um arquivo de PDF escolhido para uma melhor segurança.
+- Possibility of converting videos to other formats besides MP4
 
-- **Videos para MP4**: Transforma vídeos de qualquer formato em MP4 para melhor utilização. 
-(Esse script usa mais de CPU e memória RAM do que o normal, então espere um pouco mais de lentitão ao usá-lo)
+**1.0.0**
 
-## Estrutura do Projeto
+- Project release
 
-A estrutura do projeto está organizada da seguinte forma:
+## Requirements
+
+- Python version 3.11.9
+
+## Features
+
+Below are the features currently available:
+
+- **Audio to Text Conversion:** Transform audio files into text using speech recognition.
+
+- **Image Conversion:** Convert images to different formats and resolutions.
+
+- **PDF to PNG:** Convert PDF documents into PNG images for easy viewing.
+
+- **PDF to Word:** Convert PDFs into editable Word documents.
+
+- **QR Code Generator:** Create QR codes from inserted text.
+
+- **PDF Passwords:** Generate a password for a chosen PDF file for better security.
+
+- **Video Conversion:** Convert videos from any format to MP4, AVI or MOV for better usability.
+(This script uses more CPU and RAM than usual, older systems might have a bit more slowness when using it.)
+
+## Project Structure
+
+The project structure is organized as follows:
 
 ```sh
 DOTFORMAT/
-├── ffmpeg/                   # Binários do FFmpeg
-├── src/
-│   ├──__pycache__/
-│   ├── conversores/          # Módulos de conversão de arquivos
-│   │   ├── __init__.py
-│   │   ├── audio_to_text.py
-│   │   ├── convert_image.py
-│   │   ├── pdf_to_png.py
-│   │   ├── pdf_to_word.py
-│   │   ├── qrcode_generator.py
-│   │   ├── senha_pdf.py
-│   │   └── video_to_mp4.py
-│   ├──images/                # Recursos de imagem
-│   │   ├──image.ico          # Capa do atalho na área de trabalho
-│   │   └──image.png          # Imagem para a interface do executável
-│   ├── gui.py                # Interface gráfica do usuário
-│   └── setup.py              # Cria o ambiente virtual e instala todas as dependencias
-├── DOTformat.spec            # Arquivo de especificação para build do projeto
-├── requirements.txt          # Lista de bibliotecas Python necessárias para o funcionamento
-├── LICENCE                   # licença do projeto
-└── README.md                 # Documentação do projeto
+├── src/                         
+│   ├──__pycache__/              
+│   ├── converters/             # File conversion modules
+│   │   ├── __init__.py          
+│   │   ├── audio_to_text.py     
+│   │   ├── convert_image.py     
+│   │   ├── convert_video.py     
+│   │   ├── pdf_to_png.py        
+│   │   ├── pdf_to_word.py      
+│   │   ├── qrcode_generator.py 
+│   │   └── pdf_password.py        
+│   ├──images/                  # Image resources
+│   │   ├──image.ico            # Shortcut cover for desktop
+│   │   └──image.png            # Image for the executable interface
+│   ├── gui.py                  # Graphical user interface
+│   └── setup.py                # Creates the virtual environment and installs all dependencies
+├── DOTformat.spec              # Project build specification file
+├── requirements.txt            # List of required Python libraries
+├── LICENCE                     # Project license
+└── README.md                   # Project documentation
 ```
 
-## Instalação
-Siga os passos abaixo para configurar o ambiente, instalar as dependências necessárias e criar o arquivo executável:
+## Instalation
+Follow the steps below to set up the virtual environment, install the necessary dependencies, and create the executable file:
 
-- Clone o repositório:
+- Clone the repository:
 
 ```sh
 git clone https://github.com/EdynuT/DOTformat.git
 cd DOTformat
 ```
 
-- No terminal escreva:
+- In the terminal, type:
 
 ```sh
 python setup.py
 ```
 
-Dessa forma o programa deve ser instalado sem maiores problemas
+This way, the program should install without major issues.
 
-## Alterações
+## Changes
 
-- Caso seja feita alguma alteração não oficial no projeto (como a adição de um novo script), recomendo que atualize o arquivo .spec:
+- If any unofficial changes are made to the project (such as adding a new script), it is recommended to update the .spec file:
 
 ```sh
 cd DOTformat
 pyi-makespec --name DOTformat --onefile --windowed src\gui.py
 ```
 
-- Em seguida crie o executável:
+- Then, create the executable file:
 
 ```sh
 pyinstaller DOTformat.spec
