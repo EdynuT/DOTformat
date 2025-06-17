@@ -43,13 +43,14 @@ Below are the features currently available:
 - **PDF to PNG:** Convert PDF documents into PNG images for easy viewing.
 
 - **PDF to Word:** Convert PDFs into editable Word documents.
+(This script may have formatting issues when the PDF has tables or when the letters are blurred.)
 
 - **QR Code Generator:** Create QR codes from inserted text.
 
 - **PDF Passwords:** Generate a password for a chosen PDF file for better security.
 
 - **Video Conversion:** Convert videos from any format to MP4, AVI or MOV for better usability.
-(This script uses more CPU and RAM than usual, older systems might have a bit more slowness when using it.)
+(This script uses more CPU and RAM than usual, older systems will have a bit more slowness when using it.)
 
 ## Project Structure
 
