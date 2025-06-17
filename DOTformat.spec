@@ -68,7 +68,7 @@ for lib in libraries:
 # Project-specific data: includes the GUI image, conversion scripts, and ffmpeg.exe (if needed)
 datas += [
     (os.path.join(src_dir, 'images', 'image.png'), 'images'),
-    (os.path.join(src_dir, 'conversores'), 'conversores'),
+    (os.path.join(src_dir, 'models'), 'models'),
     (os.path.join(base_dir, 'ffmpeg', 'bin', 'ffmpeg.exe'), os.path.join('ffmpeg', 'bin')),
 ]
 

@@ -3,14 +3,19 @@ from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 from PIL import ImageTk
 import os
-from converters.convert_image import ImageConverter
-from converters.pdf_to_png import pdf_to_png
-from converters.pdf_to_word import pdf_to_docx
-from converters.audio_to_text import convert_audio_to_text
-from converters.qrcode_generator import generate_qr_code
-from converters.convert_video import convert_video_choice, convert_video
+# Import converters
+from models.convert_image import ImageConverter
+from models.pdf_to_png import pdf_to_png
+from models.pdf_to_docx import pdf_to_docx
+from models.audio_to_text import convert_audio_to_text
+from models.qrcode_generator import generate_qr_code
+from models.convert_video import convert_video_choice, convert_video
 
 def pdf_to_png_action():
+    """
+    Allows the user to select a PDF file and a folder to save the resulting PNG images.
+    Calls the pdf_to_png function and shows a message based on the outcome.
+    """
     pdf_file = filedialog.askopenfilename(
         title="Select the PDF file",
         filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
@@ -31,6 +36,10 @@ def pdf_to_png_action():
         messagebox.showerror("Error", msg)
 
 def pdf_to_word_action():
+    """
+    Allows the user to choose a PDF file and provide a location/name for the DOCX output.
+    Calls the pdf_to_docx function to perform the conversion.
+    """
     pdf_file = filedialog.askopenfilename(
         title="Select the PDF file",
         filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
@@ -39,6 +48,7 @@ def pdf_to_word_action():
         messagebox.showwarning("Warning", "No file selected.")
         return
 
+    # Derive a default DOCX filename based on the PDF filename
     base_name = os.path.splitext(os.path.basename(pdf_file))[0]
     default_docx_name = f"{base_name}.docx"
 
@@ -59,6 +69,10 @@ def pdf_to_word_action():
         messagebox.showerror("Error", msg)
 
 def audio_to_text_action():
+    """
+    Allows the user to select an audio file and specify a text file to save the transcription.
+    Calls the convert_audio_to_text function and displays a message regarding the conversion.
+    """
     audio_file = filedialog.askopenfilename(
         title="Select the audio file",
         filetypes=[("Audio Files", "*.wav;*.mp3;*.flac;*.ogg;*.aac;*.wma;*.m4a;*.mp4;*.webm;*.avi;*.mov;*.3gp"), ("All Files", "*.*")]
@@ -67,6 +81,7 @@ def audio_to_text_action():
         messagebox.showwarning("Warning", "No file selected.")
         return
 
+    # Derive a default text filename from the audio file name
     base_name = os.path.splitext(os.path.basename(audio_file))[0]
     default_text_name = f"{base_name}.txt"
 
@@ -87,6 +102,10 @@ def audio_to_text_action():
         messagebox.showerror("Error", msg)
 
 def qr_code_action():
+    """
+    Prompts the user to input text or a URL to generate a QR code.
+    The generated QR code image is then saved to a user specified location.
+    """
     text = simpledialog.askstring("Input Text", "Enter text or URL to generate a QR Code:")
     if not text:
         messagebox.showwarning("Warning", "No text or URL provided.")
@@ -108,6 +127,11 @@ def qr_code_action():
         messagebox.showerror("Error", msg)
 
 def batch_video_conversion(output_format):
+    """
+    Performs batch video conversion.
+    The user selects a folder containing videos and a destination folder.
+    Each video in the folder is converted to the specified output format.
+    """
     input_dir = filedialog.askdirectory(title="Select the folder with videos to convert")
     if not input_dir:
         messagebox.showwarning("Warning", "No folder selected.")
@@ -118,13 +142,15 @@ def batch_video_conversion(output_format):
         messagebox.showwarning("Warning", "No folder selected.")
         return
 
+    # Supported video extensions
     video_extensions = ('.avi', '.mov', '.mkv', '.flv', '.wmv', '.mp4', '.mpeg', '.mpg', '.dav')
+    # List all video files from the selected folder
     videos = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.lower().endswith(video_extensions)]
     if not videos:
         messagebox.showwarning("Warning", "No videos found in the folder.")
         return
 
-    videos = sorted(videos)  # FIFO: first in, first processed
+    videos = sorted(videos)  # FIFO: process first file first
     results = []
     for video_file in videos:
         base_name = os.path.splitext(os.path.basename(video_file))[0]
@@ -136,24 +162,30 @@ def batch_video_conversion(output_format):
     messagebox.showinfo("Conversion Completed", summary)
 
 def video_conversion_action():
-    # Create a window to choose conversion type
+    """
+    Creates a pop-up window that lets the user choose between:
+      - Single video conversion (which will lead to a format-choice dialog), or
+      - Batch video conversion, where the user can select the desired output format (MP4, AVI, or MOV)
+    """
+    # Create a new window for the video conversion options
     conv_win = tk.Toplevel(root)
     conv_win.title("Select Video Conversion Type")
     conv_win.geometry("300x300")
     conv_win.resizable(False, False)
-    conv_win.grab_set()
+    conv_win.grab_set()  # Make the window modal
 
+    # Label for conversion type
     lbl = ttk.Label(conv_win, text="Choose conversion type:")
     lbl.pack(pady=10)
 
+    # Radio buttons for choosing conversion type: single or batch
     conv_type = tk.StringVar(value="single")
     rb_single = ttk.Radiobutton(conv_win, text="Single Video Conversion", variable=conv_type, value="single")
     rb_single.pack(anchor="w", padx=20)
-
     rb_batch = ttk.Radiobutton(conv_win, text="Batch Video Conversion", variable=conv_type, value="batch")
     rb_batch.pack(anchor="w", padx=20)
 
-    # For batch conversion, let the user choose the output format.
+    # For batch conversion, allow the user to choose the output format
     format_var = tk.StringVar(value="mp4")
     lbl_format = ttk.Label(conv_win, text="Select output format for batch conversion:")
     lbl_format.pack(pady=10)
@@ -165,26 +197,33 @@ def video_conversion_action():
     rb_mov.pack(anchor="w", padx=40)
 
     def confirm():
+        # Destroys the conversion type window and launches the appropriate conversion process
         conv_win.destroy()
         if conv_type.get() == "single":
-            # Same behavior as before: let the user choose the output format for single conversion.
+            # For single conversion use the existing format-choice function
             convert_video_choice(root)
         else:
-            # Batch conversion with chosen output format.
+            # For batch conversion, call the batch conversion function with the selected output format
             batch_video_conversion(format_var.get())
 
     btn_confirm = ttk.Button(conv_win, text="Confirm", command=confirm)
     btn_confirm.pack(pady=10)
 
 def main():
-    global root  # To use 'root' in video functions
+    """
+    Initializes the main application window, sets up all converters' buttons and their actions,
+    and enters the main GUI event loop.
+    """
+    global root  # Declare root as global so it can be accessed by other functions (e.g., video conversion)
     root = tk.Tk()
     root.title("DOTformat - File Converter")
     root.resizable(False, False)
 
+    # Set up the style/theme of the application
     style = ttk.Style()
     style.theme_use('clam')
 
+    # Determine base directory and load the header image
     base_dir = os.path.abspath(os.path.dirname(__file__))
     image_path = os.path.join(base_dir, 'images', 'image.png')
     if not os.path.exists(image_path):
@@ -195,18 +234,21 @@ def main():
     image = Image.open(image_path)
     photo = ImageTk.PhotoImage(image)
 
+    # Header frame to display the image
     header_frame = ttk.Frame(root)
     header_frame.pack(pady=10)
-
     image_label = ttk.Label(header_frame, image=photo)
-    image_label.image = photo
+    image_label.image = photo  # Retain a reference to the image to avoid garbage collection
     image_label.pack()
 
+    # Main frame for action buttons
     mainframe = ttk.Frame(root, padding="10 10 10 10")
     mainframe.pack(fill=tk.BOTH, expand=True)
 
+    # Instantiate the ImageConverter class
     image_converter = ImageConverter(root)
 
+    # Create and grid all buttons for the different conversion actions
     btn_convert_image = ttk.Button(mainframe, text="Convert Images", command=image_converter.convert_image)
     btn_convert_image.grid(column=0, row=0, pady=5, padx=5, sticky='EW')
 
@@ -222,12 +264,14 @@ def main():
     btn_generate_qr_code = ttk.Button(mainframe, text="Generate QR Code", command=qr_code_action)
     btn_generate_qr_code.grid(column=0, row=4, pady=5, padx=5, sticky='EW')
 
-    # One combined button for video conversion
+    # A single combined button for video conversion actions
     btn_video_conversion = ttk.Button(mainframe, text="Convert Videos", command=video_conversion_action)
     btn_video_conversion.grid(column=0, row=5, pady=5, padx=5, sticky='EW')
 
+    # Ensure the main frame expands properly
     mainframe.columnconfigure(0, weight=1)
 
+    # Start the GUI main event loop
     root.mainloop()
 
 if __name__ == "__main__":

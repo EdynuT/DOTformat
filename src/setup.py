@@ -5,7 +5,7 @@ import venv
 from pathlib import Path
 import urllib.request, zipfile
 
-# Detect the Desktop path in either English or Portuguese
+# Detect the Desktop path (or "Área de Trabalho" for localized systems)
 home = Path.home()
 desktop_path = home / "Desktop"
 if not desktop_path.exists():
@@ -13,19 +13,25 @@ if not desktop_path.exists():
 print("Desktop found at:", desktop_path)
 
 def install_ffmpeg(project_root):
-    """Checks if the 'ffmpeg' folder exists. If not, downloads and extracts FFmpeg."""
+    """
+    Checks if the 'ffmpeg' folder already exists in the project.
+    If not, downloads and extracts FFmpeg.
+    Then, renames the extracted folder to 'ffmpeg' and adds its 'bin' directory to the PATH.
+    """
+    # Define the directory where FFmpeg will be installed
     ffmpeg_dir = project_root / "ffmpeg"
     if ffmpeg_dir.exists():
         print("FFmpeg is already installed.")
-        # Ensure the ffmpeg binary is in the PATH
+        # Add the ffmpeg 'bin' directory to the PATH so the executables can be found
         os.environ["PATH"] += os.pathsep + str(ffmpeg_dir / "bin")
         return ffmpeg_dir
 
     print("FFmpeg not found. Downloading FFmpeg...")
-    # URL for a static FFmpeg version for Windows (adjust if updated)
+    # URL for a static FFmpeg build for Windows (modify if needed)
     url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
     zip_path = project_root / "ffmpeg.zip"
 
+    # Download the FFmpeg zip file
     try:
         urllib.request.urlretrieve(url, zip_path)
     except Exception as e:
@@ -33,6 +39,7 @@ def install_ffmpeg(project_root):
         sys.exit(1)
 
     print("Extracting FFmpeg...")
+    # Extract the contents of the zip file to the project directory
     try:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(project_root)
@@ -40,32 +47,39 @@ def install_ffmpeg(project_root):
         print("Error extracting FFmpeg:", e)
         sys.exit(1)
 
-    # Generally the zip extracts into a folder named something like "ffmpeg-release-essentials"
-    # Adjust according to the extracted folder name if needed
-    extracted_folder = project_root / "ffmpeg-release-essentials"
-    if not extracted_folder.exists():
+    # Search for the extracted directory which contains both "ffmpeg" and "essentials" in its name.
+    # e.g., "ffmpeg-7.1.1-essentials_build"
+    extracted_folders = [d for d in project_root.iterdir() 
+                         if d.is_dir() and "ffmpeg" in d.name.lower() and "essentials" in d.name.lower()]
+    if not extracted_folders:
         print("Extracted FFmpeg folder not found.")
         sys.exit(1)
+    
+    extracted_folder = extracted_folders[0]
+    print(f"Found extracted folder: {extracted_folder.name}")
 
-    # Rename the folder to "ffmpeg" for consistency
+    # Rename the extracted folder to "ffmpeg" for consistency
     try:
         extracted_folder.rename(ffmpeg_dir)
     except Exception as e:
         print("Error renaming the FFmpeg folder:", e)
         sys.exit(1)
 
-    # Remove the downloaded zip file
+    # Remove the downloaded zip file as it is no longer needed
     try:
         zip_path.unlink()
     except Exception as e:
         print("Could not remove the zip file:", e)
 
-    # Add the FFmpeg executables path to PATH
+    # Add the ffmpeg 'bin' directory to the system PATH
     os.environ["PATH"] += os.pathsep + str(ffmpeg_dir / "bin")
     print("FFmpeg installed successfully!")
     return ffmpeg_dir
 
 def create_virtualenv(venv_path):
+    """
+    Creates a virtual environment at the specified path if it does not already exist.
+    """
     if not venv_path.exists():
         print(f"Creating virtual environment at: {venv_path}")
         venv.create(venv_path, with_pip=True)
@@ -73,14 +87,20 @@ def create_virtualenv(venv_path):
         print("Virtual environment already exists.")
 
 def install_requirements(venv_path, requirements_file):
+    """
+    Installs the dependencies defined in the 'requirements.txt' file using the virtual environment's pip.
+    Also installs PyInstaller separately to prevent it from being updated when freezing dependencies.
+    """
+    # Determine the pip executable based on the operating system
     if sys.platform == "win32":
         pip_executable = venv_path / "Scripts" / "pip.exe"
     else:
         pip_executable = venv_path / "bin" / "pip"
         
     print("Installing dependencies...")
-    # Install PyInstaller separately to prevent it from being updated in the freeze
+    # Install PyInstaller separately
     subprocess.check_call(f"{str(pip_executable)} install pyinstaller", shell=True)
+    # Build command to upgrade and install dependencies from requirements.txt
     command = f'{str(pip_executable)} install --upgrade -r "{str(requirements_file)}"'
     try:
         subprocess.check_call(command, shell=True)
@@ -91,6 +111,11 @@ def install_requirements(venv_path, requirements_file):
         sys.exit(1)
 
 def update_requirements(venv_path, requirements_file):
+    """
+    Updates the 'requirements.txt' file with the currently installed versions in the virtual environment.
+    Filters out PyInstaller from the pip freeze output.
+    """
+    # Determine the pip executable based on the operating system
     if sys.platform == "win32":
         pip_executable = venv_path / "Scripts" / "pip.exe"
     else:
@@ -103,12 +128,15 @@ def update_requirements(venv_path, requirements_file):
         print("Error during pip freeze. Details:", e)
         sys.exit(1)
         
-    # Filter out pyinstaller (add others if needed)
+    # Filter out lines containing "pyinstaller" to avoid updating this tool
     filtered_lines = [line for line in freeze_output if "pyinstaller" not in line.lower()]
     with requirements_file.open("w") as req:
         req.write("\n".join(filtered_lines) + "\n")
 
 def build_exe(project_root):
+    """
+    Calls PyInstaller using the spec file to generate an executable.
+    """
     spec_file = project_root / "DOTformat.spec"
     print("Building executable from the spec...")
     command = f'pyinstaller "{str(spec_file)}"'
@@ -120,14 +148,16 @@ def build_exe(project_root):
     print("Executable built successfully!")
 
 if __name__ == "__main__":
-    # Define the project paths
+    # Define the main project paths
     project_root = Path(__file__).resolve().parent.parent
-    # Install FFmpeg (if not installed) and update PATH
+    # Install FFmpeg (if not already installed) and update the PATH variable
     install_ffmpeg(project_root)
     
+    # Define the virtual environment directory and the path to the requirements.txt file
     venv_dir = project_root / "env"
     requirements_txt = project_root / "requirements.txt"
     
+    # Create the virtual environment, install dependencies, update requirements.txt, and build the executable
     create_virtualenv(venv_dir)
     install_requirements(venv_dir, requirements_txt)
     update_requirements(venv_dir, requirements_txt)
