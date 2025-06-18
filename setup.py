@@ -5,13 +5,6 @@ import venv
 from pathlib import Path
 import urllib.request, zipfile
 
-# Detect the Desktop path (or "Área de Trabalho" for localized systems)
-home = Path.home()
-desktop_path = home / "Desktop"
-if not desktop_path.exists():
-    desktop_path = home / "Área de Trabalho"
-print("Desktop found at:", desktop_path)
-
 def install_ffmpeg(project_root):
     """
     Checks if the 'ffmpeg' folder already exists in the project.
@@ -148,15 +141,15 @@ def build_exe(project_root):
     print("Executable built successfully!")
 
 if __name__ == "__main__":
-    # Define the main project paths
-    project_root = Path(__file__).resolve().parent.parent
-    # Install FFmpeg (if not already installed) and update the PATH variable
+    # Defines the main project paths
+    project_root = Path(__file__).resolve().parent # Adjust this if your setup.py is in a different location
+    # Installs FFmpeg (if not already installed) and updates the PATH
     install_ffmpeg(project_root)
-    
+
     # Define the virtual environment directory and the path to the requirements.txt file
     venv_dir = project_root / "env"
     requirements_txt = project_root / "requirements.txt"
-    
+
     # Create the virtual environment, install dependencies, update requirements.txt, and build the executable
     create_virtualenv(venv_dir)
     install_requirements(venv_dir, requirements_txt)

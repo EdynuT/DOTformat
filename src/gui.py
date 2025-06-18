@@ -3,13 +3,15 @@ from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 from PIL import ImageTk
 import os
-# Import converters
-from models.convert_image import ImageConverter
-from models.pdf_to_png import pdf_to_png
-from models.pdf_to_docx import pdf_to_docx
-from models.audio_to_text import convert_audio_to_text
-from models.qrcode_generator import generate_qr_code
-from models.convert_video import convert_video_choice, convert_video
+import sys
+# Import converters from the src.models package
+from src.models.convert_image import ImageConverter
+from src.models.pdf_to_png import pdf_to_png
+from src.models.pdf_to_docx import pdf_to_docx
+from src.models.audio_to_text import convert_audio_to_text
+from src.models.qrcode_generator import generate_qr_code
+from src.models.convert_video import convert_video_choice, convert_video
+from src.models.remove_background import remove_background
 
 def pdf_to_png_action():
     """
@@ -208,13 +210,21 @@ def video_conversion_action():
 
     btn_confirm = ttk.Button(conv_win, text="Confirm", command=confirm)
     btn_confirm.pack(pady=10)
+    
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(base_path, relative_path)
 
 def main():
     """
     Initializes the main application window, sets up all converters' buttons and their actions,
     and enters the main GUI event loop.
     """
-    global root  # Declare root as global so it can be accessed by other functions (e.g., video conversion)
+    global root
     root = tk.Tk()
     root.title("DOTformat - File Converter")
     root.resizable(False, False)
@@ -223,9 +233,8 @@ def main():
     style = ttk.Style()
     style.theme_use('clam')
 
-    # Determine base directory and load the header image
-    base_dir = os.path.abspath(os.path.dirname(__file__))
-    image_path = os.path.join(base_dir, 'images', 'image.png')
+    # Use resource_path to locate the image
+    image_path = resource_path('images/image.png')
     if not os.path.exists(image_path):
         messagebox.showerror("Error", f"Image not found: {image_path}")
         return
@@ -252,27 +261,27 @@ def main():
     btn_convert_image = ttk.Button(mainframe, text="Convert Images", command=image_converter.convert_image)
     btn_convert_image.grid(column=0, row=0, pady=5, padx=5, sticky='EW')
 
+    btn_remove_bg = ttk.Button(mainframe, text="Remove Image Background", command=remove_background)
+    btn_remove_bg.grid(column=0, row=1, pady=5, padx=5, sticky='EW')
+
     btn_pdf_to_png = ttk.Button(mainframe, text="PDF to PNG", command=pdf_to_png_action)
-    btn_pdf_to_png.grid(column=0, row=1, pady=5, padx=5, sticky='EW')
+    btn_pdf_to_png.grid(column=0, row=2, pady=5, padx=5, sticky='EW')
 
     btn_pdf_to_word = ttk.Button(mainframe, text="PDF to DOCX", command=pdf_to_word_action)
-    btn_pdf_to_word.grid(column=0, row=2, pady=5, padx=5, sticky='EW')
+    btn_pdf_to_word.grid(column=0, row=3, pady=5, padx=5, sticky='EW')
 
     btn_audio_to_text = ttk.Button(mainframe, text="Audio to Text", command=audio_to_text_action)
-    btn_audio_to_text.grid(column=0, row=3, pady=5, padx=5, sticky='EW')
+    btn_audio_to_text.grid(column=0, row=4, pady=5, padx=5, sticky='EW')
 
     btn_generate_qr_code = ttk.Button(mainframe, text="Generate QR Code", command=qr_code_action)
-    btn_generate_qr_code.grid(column=0, row=4, pady=5, padx=5, sticky='EW')
+    btn_generate_qr_code.grid(column=0, row=5, pady=5, padx=5, sticky='EW')
 
     # A single combined button for video conversion actions
     btn_video_conversion = ttk.Button(mainframe, text="Convert Videos", command=video_conversion_action)
-    btn_video_conversion.grid(column=0, row=5, pady=5, padx=5, sticky='EW')
+    btn_video_conversion.grid(column=0, row=6, pady=5, padx=5, sticky='EW')
 
     # Ensure the main frame expands properly
     mainframe.columnconfigure(0, weight=1)
 
     # Start the GUI main event loop
     root.mainloop()
-
-if __name__ == "__main__":
-    main()

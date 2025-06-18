@@ -73,8 +73,8 @@ datas += [
 ]
 
 a = Analysis(
-    [os.path.join(src_dir, 'gui.py')],
-    pathex=[src_dir],
+    [os.path.join(base_dir, 'main.py')],
+    pathex=[base_dir],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

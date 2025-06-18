@@ -8,9 +8,33 @@ DOTFORMAT is a project developed by Edynu to handle various file conversion and 
 
 ### Changelog
 
+**1.2.0**
+
+- Added a background remover for your images with a eraser mode
+
+    - Adjustable brush size with visual indicators
+
+    - Brush preview follows the mouse
+
+    - Zoom (centered on cursor) and pan with right mouse button
+
+    - Undo for manual edits
+
+    - Option to save or discard manual changes
+
+    - Enhanced post-processing: clean mask, fill holes, smooth edges
+
+    - Better usability and interface layout for manual editing
+
+- Add a [main.py] file for a easier search for the start of the program
+
+- Changed the [setup.py] file from [src] folder for a easier search for the setup of the system
+
+- Improved the compatibility with other systems in general
+
 **1.1.0**
 
-- The folder name *converters* was changed to *models*
+- The folder name [converters] was changed to [models]
 
 - Compatibility bug fixes with other systems lenguages (PT-BR)
 
@@ -26,7 +50,7 @@ DOTFORMAT is a project developed by Edynu to handle various file conversion and 
 
 ## Requirements
 
-- The stronger the CPU, the better the performance
+- The stronger the CPU and the more RAM, the better the performance
 
 - At least 3 GB of space
 
@@ -50,7 +74,32 @@ Below are the features currently available:
 - **PDF Passwords:** Generate a password for a chosen PDF file for better security.
 
 - **Video Conversion:** Convert videos from any format to MP4, AVI or MOV for better usability.
-(This script uses more CPU and RAM than usual, older systems will have a bit more slowness when using it.)
+(This script uses more CPU and RAM than usual, older systems will have a bit more slowness when using it, but will work.)
+
+- **Remove Background:** Removes the background of the image that you choose, with advanced post-processing options:
+
+    - **Post-processing tools:** Clean mask, fill small holes, and smooth edges with one click.
+
+    - **Manual Eraser Mode:** After automatic background removal, you can manually erase or restore areas of the image using a configurable brush.
+
+        - Adjustable brush size (vertical slider from 1 to 100, with visual indicators).
+        - Brush preview follows the mouse cursor.
+        - Zoom in/out with mouse scroll (up to 500%), centered on the cursor.
+        - Pan the image by dragging with the right mouse button.
+        - Undo last manual actions.
+        - Option to save or discard manual edits before returning to the main window.
+
+### Manual Eraser Mode (Background Remover)
+
+After removing the background from an image, you can further refine the result with the Manual Eraser Mode:
+
+- **Brush Size Control:** Adjust the eraser size with a vertical slider (1–100), with "Brush Size" label and numeric indicators.
+- **Brush Preview:** A red circle shows the current brush size and follows your mouse.
+- **Zoom and Pan:** Use the mouse scroll to zoom in/out (up to 500%), and drag with the right mouse button to pan the image.
+- **Undo:** Undo your last manual erasing actions.
+- **Exit Options:** When exiting, choose to save or discard your manual edits.
+
+This makes it easy to clean up any leftover background or restore details with precision.
 
 ## Project Structure
 
@@ -58,26 +107,29 @@ The project structure is organized as follows:
 
 ```sh
 DOTFORMAT/
-├── src/                         
+├── src/
+│   ├──__pycache__/
 │   ├──images/                  # Image resources
-│   │   ├──image.ico            # Shortcut cover for desktop
+│   │   ├──image.ico            # Shortcut cover for desktop (unfortunately you still have to do this manualy)
 │   │   └──image.png            # Image for the executable interface            
 │   ├── models/                 # File conversion models
 │   │   ├──__pycache__/
-│   │   ├── __init__.py          
-│   │   ├── audio_to_text.py     
-│   │   ├── convert_image.py     
-│   │   ├── convert_video.py     
-│   │   ├── pdf_password.py        
-│   │   ├── pdf_to_docx.py      
-│   │   ├── pdf_to_png.py        
-│   │   └── qrcode_generator.py 
-│   ├── gui.py                  # Graphical user interface
-│   └── setup.py                # Creates the virtual environment, installs all dependencies and create the .exe file
+│   │   ├── __init__.py
+│   │   ├── audio_to_text.py
+│   │   ├── convert_image.py
+│   │   ├── convert_video.py
+│   │   ├── pdf_password.py
+│   │   ├── pdf_to_docx.py
+│   │   ├── pdf_to_png.py
+│   │   ├── qrcode_generator.py
+│   │   └── remove_background.py
+│   └── gui.py                  # Graphical user interface
 ├── DOTformat.spec              # Project build specification file
 ├── LICENCE                     # Project license
+├── main.py                     # Start button of the program
 ├── README.md                   # Project documentation
-└── requirements.txt            # List of required Python libraries
+├── requirements.txt            # List of required Python libraries
+└── setup.py                    # Creates the virtual environment, installs all dependencies and create the .exe file
 ```
 
 ## Instalation
@@ -112,7 +164,7 @@ Don't worry, the file is a little heavier than normal, so it takes some minutes 
 
 ```sh
 cd DOTformat
-pyi-makespec --name DOTformat --onefile --windowed src\gui.py
+pyi-makespec --name DOTformat --onefile --windowed main.py
 ```
 
 - Then, create the executable file:
@@ -129,7 +181,7 @@ If you’d like to contribute, please follow these guidelines:
 1. Fork the repository.
 2. Create a new branch for your feature or bug fix.
 3. Write clear, concise commit messages.
-4. Ensure that your code follows the existing style.
+4. Ensure that your code follows the existing style and is well commented.
 5. Submit a pull request describing your changes and why they’re needed.
 
 ## License
@@ -155,3 +207,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Message
+
+Rarely I will make just minor bug fixes, but might happen. ¯\_(ツ)_/¯
