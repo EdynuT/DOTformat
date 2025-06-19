@@ -89,18 +89,6 @@ Below are the features currently available:
         - Undo last manual actions.
         - Option to save or discard manual edits before returning to the main window.
 
-### Manual Eraser Mode (Background Remover)
-
-After removing the background from an image, you can further refine the result with the Manual Eraser Mode:
-
-- **Brush Size Control:** Adjust the eraser size with a vertical slider (1–100), with "Brush Size" label and numeric indicators.
-- **Brush Preview:** A red circle shows the current brush size and follows your mouse.
-- **Zoom and Pan:** Use the mouse scroll to zoom in/out (up to 500%), and drag with the right mouse button to pan the image.
-- **Undo:** Undo your last manual erasing actions.
-- **Exit Options:** When exiting, choose to save or discard your manual edits.
-
-This makes it easy to clean up any leftover background or restore details with precision.
-
 ## Project Structure
 
 The project structure is organized as follows:
