@@ -6,69 +6,124 @@ import os
 import sys
 # Import converters from the src.models package
 from src.models.convert_image import ImageConverter
-from src.models.pdf_to_png import pdf_to_png
-from src.models.pdf_to_docx import pdf_to_docx
+from src.models.pdf_manager import pdf_to_docx, pdf_to_png, protect_pdf
 from src.models.audio_to_text import convert_audio_to_text
 from src.models.qrcode_generator import generate_qr_code
-from src.models.convert_video import convert_video_choice, convert_video
+from src.models.convert_video import convert_video_choice
 from src.models.remove_background import remove_background
 
-def pdf_to_png_action():
+def pdf_manager_action():
     """
-    Allows the user to select a PDF file and a folder to save the resulting PNG images.
-    Calls the pdf_to_png function and shows a message based on the outcome.
+    Opens a window with options for PDF management: convert to DOCX, convert to PNG, or add password.
+    This function is called when the user clicks the "PDF Manager" button in the main menu.
     """
-    pdf_file = filedialog.askopenfilename(
-        title="Select the PDF file",
-        filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
-    )
-    if not pdf_file:
-        messagebox.showwarning("Warning", "No file selected.")
-        return
+    # Create a new modal window for PDF options
+    pdf_win = tk.Toplevel(root)
+    pdf_win.title("PDF Manager")
+    pdf_win.geometry("320x240")
+    pdf_win.resizable(False, False)
+    pdf_win.grab_set()  # Makes this window modal (blocks interaction with the main window)
 
-    output_dir = filedialog.askdirectory(title="Select the directory to save images")
-    if not output_dir:
-        messagebox.showwarning("Warning", "No directory selected.")
-        return
+    # Function to convert PDF to DOCX
+    def to_docx():
+        pdf_win.lift()  # Bring the window to the front
+        # Open dialog to select the input PDF
+        pdf_file = filedialog.askopenfilename(
+            title="Select the PDF file",
+            filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
+        )
+        if not pdf_file:
+            return  # User cancelled
+        # Suggest a default name for the output DOCX file
+        base_name = os.path.splitext(os.path.basename(pdf_file))[0]
+        default_docx_name = f"{base_name}.docx"
+        # Open dialog to save the DOCX
+        docx_file = filedialog.asksaveasfilename(
+            title="Save DOCX as",
+            defaultextension=".docx",
+            initialfile=default_docx_name,
+            filetypes=[("DOCX File", "*.docx")]
+        )
+        if not docx_file:
+            return  # User cancelled
+        # Call the conversion function and show a success/error message
+        success, msg = pdf_to_docx(pdf_file, docx_file)
+        if success:
+            messagebox.showinfo("Success", msg, parent=pdf_win)
+        else:
+            messagebox.showerror("Error", msg, parent=pdf_win)
 
-    success, msg = pdf_to_png(pdf_file, output_dir)
-    if success:
-        messagebox.showinfo("Success", msg)
-    else:
-        messagebox.showerror("Error", msg)
+    # Function to convert PDF to PNG images
+    def to_png():
+        pdf_win.lift()
+        # Select the input PDF
+        pdf_file = filedialog.askopenfilename(
+            title="Select the PDF file",
+            filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
+        )
+        if not pdf_file:
+            return
+        # Select the output folder for the images
+        output_dir = filedialog.askdirectory(title="Select the directory to save images")
+        if not output_dir:
+            return
+        # Call the conversion function and show a success/error message
+        success, msg = pdf_to_png(pdf_file, output_dir)
+        if success:
+            messagebox.showinfo("Success", msg, parent=pdf_win)
+        else:
+            messagebox.showerror("Error", msg, parent=pdf_win)
 
-def pdf_to_word_action():
-    """
-    Allows the user to choose a PDF file and provide a location/name for the DOCX output.
-    Calls the pdf_to_docx function to perform the conversion.
-    """
-    pdf_file = filedialog.askopenfilename(
-        title="Select the PDF file",
-        filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
-    )
-    if not pdf_file:
-        messagebox.showwarning("Warning", "No file selected.")
-        return
+    # Function to add a password to the PDF
+    def add_password():
+        pdf_win.lift()
+        # Select the input PDF
+        pdf_file = filedialog.askopenfilename(
+            title="Select the PDF file",
+            filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")]
+        )
+        if not pdf_file:
+            return
+        # Ask the user for a password (can be left blank)
+        password = simpledialog.askstring(
+            "PDF Password",
+            "Enter a password for the PDF (leave blank for no password):",
+            show='*',
+            parent=pdf_win
+        )
+        if password is None:
+            return  # User cancelled
+        # Select the location to save the protected PDF
+        output_pdf = filedialog.asksaveasfilename(
+            title="Save protected PDF as",
+            defaultextension=".pdf",
+            initialfile="protected.pdf",
+            filetypes=[("PDF File", "*.pdf")]
+        )
+        if not output_pdf:
+            return
+        if password == "":
+            # If no password, just copy the PDF
+            try:
+                with open(pdf_file, "rb") as src, open(output_pdf, "wb") as dst:
+                    dst.write(src.read())
+                messagebox.showinfo("Success", f"PDF saved without password at: {output_pdf}", parent=pdf_win)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save PDF: {e}", parent=pdf_win)
+        else:
+            # If a password is provided, protect the PDF
+            try:
+                protect_pdf(pdf_file, password, output_pdf)
+                messagebox.showinfo("Success", f"Protected PDF saved at: {output_pdf}", parent=pdf_win)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to protect PDF: {e}", parent=pdf_win)
 
-    # Derive a default DOCX filename based on the PDF filename
-    base_name = os.path.splitext(os.path.basename(pdf_file))[0]
-    default_docx_name = f"{base_name}.docx"
-
-    docx_file = filedialog.asksaveasfilename(
-        title="Save DOCX as",
-        defaultextension=".docx",
-        initialfile=default_docx_name,
-        filetypes=[("DOCX File", "*.docx")]
-    )
-    if not docx_file:
-        messagebox.showwarning("Warning", "No save location specified.")
-        return
-
-    success, msg = pdf_to_docx(pdf_file, docx_file)
-    if success:
-        messagebox.showinfo("Success", msg)
-    else:
-        messagebox.showerror("Error", msg)
+    # Layout for the buttons in the PDF Manager window
+    ttk.Label(pdf_win, text="Choose a PDF operation:").pack(pady=10)
+    ttk.Button(pdf_win, text="Convert PDF to DOCX", command=to_docx).pack(fill="x", padx=30, pady=5)
+    ttk.Button(pdf_win, text="Convert PDF to PNG", command=to_png).pack(fill="x", padx=30, pady=5)
+    ttk.Button(pdf_win, text="Add Password to PDF", command=add_password).pack(fill="x", padx=30, pady=5)
+    ttk.Button(pdf_win, text="Close", command=pdf_win.destroy).pack(fill="x", padx=30, pady=10)
 
 def audio_to_text_action():
     """
@@ -152,12 +207,12 @@ def batch_video_conversion(output_format):
         messagebox.showwarning("Warning", "No videos found in the folder.")
         return
 
-    videos = sorted(videos)  # FIFO: process first file first
+    # FIFO: processes files in order of entry
     results = []
     for video_file in videos:
         base_name = os.path.splitext(os.path.basename(video_file))[0]
         output_file = os.path.join(output_dir, f"{base_name}_converted.{output_format}")
-        success, msg = convert_video(video_file, output_file, output_format)
+        success, msg = convert_video_choice(video_file, output_file, output_format)
         results.append(f"{os.path.basename(video_file)}: {'Success' if success else 'Error'}")
     
     summary = "\n".join(results)
@@ -199,13 +254,12 @@ def video_conversion_action():
     rb_mov.pack(anchor="w", padx=40)
 
     def confirm():
-        # Destroys the conversion type window and launches the appropriate conversion process
+        # Destroy the conversion window and proceed with the selected conversion type
         conv_win.destroy()
         if conv_type.get() == "single":
-            # For single conversion use the existing format-choice function
-            convert_video_choice(root)
+            # Pass the selected format to convert_video_choice
+            convert_video_choice(root, format_var.get())
         else:
-            # For batch conversion, call the batch conversion function with the selected output format
             batch_video_conversion(format_var.get())
 
     btn_confirm = ttk.Button(conv_win, text="Confirm", command=confirm)
@@ -264,21 +318,17 @@ def main():
     btn_remove_bg = ttk.Button(mainframe, text="Remove Image Background", command=remove_background)
     btn_remove_bg.grid(column=0, row=1, pady=5, padx=5, sticky='EW')
 
-    btn_pdf_to_png = ttk.Button(mainframe, text="PDF to PNG", command=pdf_to_png_action)
-    btn_pdf_to_png.grid(column=0, row=2, pady=5, padx=5, sticky='EW')
-
-    btn_pdf_to_word = ttk.Button(mainframe, text="PDF to DOCX", command=pdf_to_word_action)
-    btn_pdf_to_word.grid(column=0, row=3, pady=5, padx=5, sticky='EW')
+    btn_pdf_manager = ttk.Button(mainframe, text="PDF Manager", command=pdf_manager_action)
+    btn_pdf_manager.grid(column=0, row=2, pady=5, padx=5, sticky='EW')
 
     btn_audio_to_text = ttk.Button(mainframe, text="Audio to Text", command=audio_to_text_action)
-    btn_audio_to_text.grid(column=0, row=4, pady=5, padx=5, sticky='EW')
+    btn_audio_to_text.grid(column=0, row=3, pady=5, padx=5, sticky='EW')
 
     btn_generate_qr_code = ttk.Button(mainframe, text="Generate QR Code", command=qr_code_action)
-    btn_generate_qr_code.grid(column=0, row=5, pady=5, padx=5, sticky='EW')
+    btn_generate_qr_code.grid(column=0, row=4, pady=5, padx=5, sticky='EW')
 
-    # A single combined button for video conversion actions
     btn_video_conversion = ttk.Button(mainframe, text="Convert Videos", command=video_conversion_action)
-    btn_video_conversion.grid(column=0, row=6, pady=5, padx=5, sticky='EW')
+    btn_video_conversion.grid(column=0, row=5, pady=5, padx=5, sticky='EW')
 
     # Ensure the main frame expands properly
     mainframe.columnconfigure(0, weight=1)

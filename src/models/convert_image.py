@@ -96,11 +96,15 @@ class ImageConverter:
             return
 
         # Suggest a default PDF name
-        default_pdf_name = "converted_images.pdf"
+        if len(image_files) == 1:
+            pdf_name = os.path.splitext(os.path.basename(image_files[0]))[0] + ".pdf"
+        else:
+            pdf_name = "merged_images.pdf"
+            
         output_pdf_path = filedialog.asksaveasfilename(
             title="Save PDF as",
             defaultextension=".pdf",
-            initialfile=default_pdf_name,
+            initialfile=pdf_name,
             filetypes=[("PDF File", "*.pdf")]
         )
         if not output_pdf_path:

@@ -2,8 +2,8 @@ import os
 import sys
 import subprocess
 import venv
-from pathlib import Path
 import urllib.request, zipfile
+from pathlib import Path
 
 def install_ffmpeg(project_root):
     """
@@ -72,17 +72,24 @@ def install_ffmpeg(project_root):
 def create_virtualenv(venv_path):
     """
     Creates a virtual environment at the specified path if it does not already exist.
+    Upgrades pip inside the virtual environment.
     """
     if not venv_path.exists():
         print(f"Creating virtual environment at: {venv_path}")
         venv.create(venv_path, with_pip=True)
+        # Determine the python executable inside the venv
+        if sys.platform == "win32":
+            python_executable = venv_path / "Scripts" / "python.exe"
+        else:
+            python_executable = venv_path / "bin" / "python"
+        # Upgrade pip inside the venv
+        subprocess.check_call([str(python_executable), "-m", "pip", "install", "--upgrade", "pip"])
     else:
         print("Virtual environment already exists.")
-
+        
 def install_requirements(venv_path, requirements_file):
     """
     Installs the dependencies defined in the 'requirements.txt' file using the virtual environment's pip.
-    Also installs PyInstaller separately to prevent it from being updated when freezing dependencies.
     """
     # Determine the pip executable based on the operating system
     if sys.platform == "win32":
@@ -91,41 +98,18 @@ def install_requirements(venv_path, requirements_file):
         pip_executable = venv_path / "bin" / "pip"
         
     print("Installing dependencies...")
-    # Install PyInstaller separately
-    subprocess.check_call(f"{str(pip_executable)} install pyinstaller", shell=True)
-    # Build command to upgrade and install dependencies from requirements.txt
-    command = f'{str(pip_executable)} install --upgrade -r "{str(requirements_file)}"'
-    try:
-        subprocess.check_call(command, shell=True)
-    except subprocess.CalledProcessError as e:
-        print("Error installing dependencies. Details:", e)
-        print("\nTry running the following command manually in the terminal:")
-        print('pip install --upgrade -r "{}"'.format(str(requirements_file)))
-        sys.exit(1)
-
-def update_requirements(venv_path, requirements_file):
-    """
-    Updates the 'requirements.txt' file with the currently installed versions in the virtual environment.
-    Filters out PyInstaller from the pip freeze output.
-    """
-    # Determine the pip executable based on the operating system
-    if sys.platform == "win32":
-        pip_executable = venv_path / "Scripts" / "pip.exe"
-    else:
-        pip_executable = venv_path / "bin" / "pip"
-        
-    print("Updating requirements.txt with installed versions (pip freeze)...")
-    try:
-        freeze_output = subprocess.check_output([str(pip_executable), "freeze"]).decode("utf-8").splitlines()
-    except subprocess.CalledProcessError as e:
-        print("Error during pip freeze. Details:", e)
-        sys.exit(1)
-        
-    # Filter out lines containing "pyinstaller" to avoid updating this tool
-    filtered_lines = [line for line in freeze_output if "pyinstaller" not in line.lower()]
-    with requirements_file.open("w") as req:
-        req.write("\n".join(filtered_lines) + "\n")
-
+    with requirements_file.open("r") as req:
+        for line in req:
+            pkg = line.strip()
+            if not pkg or pkg.startswith("#"):
+                continue
+            print(f"Installing: {pkg}")
+            try:
+                subprocess.check_call(f"{str(pip_executable)} install {pkg}", shell=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error installing {pkg}: {e}")
+                print("You may need to install this package manually.")
+                
 def build_exe(project_root):
     """
     Calls PyInstaller using the spec file to generate an executable.
@@ -150,8 +134,7 @@ if __name__ == "__main__":
     venv_dir = project_root / "env"
     requirements_txt = project_root / "requirements.txt"
 
-    # Create the virtual environment, install dependencies, update requirements.txt, and build the executable
+    # Create the virtual environment, install dependencies, and build the executable
     create_virtualenv(venv_dir)
     install_requirements(venv_dir, requirements_txt)
-    update_requirements(venv_dir, requirements_txt)
     build_exe(project_root)

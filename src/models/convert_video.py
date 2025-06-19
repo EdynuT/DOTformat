@@ -1,50 +1,29 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-import os
+import threading
 import ffmpeg
+import time
+import cv2
+import os
+import re
+import sys
+from tkinter import filedialog, messagebox, ttk, Toplevel, DoubleVar
 
-def convert_video(video_file, output_file, output_format="mp4"):
+def get_video_duration(video_file):
     """
-    Converts a single video to the specified format.
-    Chooses appropriate codecs based on the output format.
-    
-    Parameters:
-      - video_file: Path to the input video.
-      - output_file: Path to save the converted video.
-      - output_format: Desired output format (default is "mp4").
-      
-    Returns:
-      A tuple (True, success message) if conversion is successful or (False, error message).
+    Returns the duration of the video in seconds using OpenCV.
     """
-    try:
-        stream = ffmpeg.input(video_file)
-        # Select codecs based on the desired format
-        if output_format.lower() == 'mp4':
-            vcodec = 'libx264'
-            acodec = 'aac'
-        elif output_format.lower() == 'avi':
-            vcodec = 'mpeg4'
-            acodec = 'mp3'
-        elif output_format.lower() == 'mov':
-            vcodec = 'libx264'
-            acodec = 'aac'
-        else:
-            # Default to mp4 settings if unrecognized
-            vcodec = 'libx264'
-            acodec = 'aac'
-        output_stream = ffmpeg.output(stream, output_file, vcodec=vcodec, acodec=acodec)
-        ffmpeg.run(output_stream, overwrite_output=True)
-        return True, "Video conversion completed successfully."
-    except Exception as e:
-        return False, f"Conversion error: {e}"
+    cap = cv2.VideoCapture(video_file)
+    total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    duration = total_frames / fps if fps > 0 else 1
+    cap.release()
+    return duration
 
-def convert_video_choice(root):
+def convert_video_choice(root, output_format):
     """
-    Opens a series of dialogs that allow the user to:
-      1. Select a video file.
-      2. Choose the output format.
-      3. Provide a save location.
-    Then, converts the video accordingly.
+    Opens dialogs to select a video file and save location, then converts the video to the specified format.
+    Shows a progress window with a progress bar and status message during conversion.
+    Progress is updated in real time based on ffmpeg output.
+    If the window is closed, the conversion is cancelled.
     """
     # Prompt user to select the input video file
     video_file = filedialog.askopenfilename(
@@ -55,42 +34,118 @@ def convert_video_choice(root):
         messagebox.showwarning("Warning", "No file selected.")
         return
 
-    # Create a window for choosing the output format
-    format_window = tk.Toplevel(root)
-    format_window.title("Select Output Format")
-    format_window.geometry("300x200")
-    format_window.resizable(False, False)
-    format_window.grab_set()
+    # Suggest default output file name based on input file name and chosen format
+    base_name = os.path.splitext(os.path.basename(video_file))[0]
+    default_output = os.path.join(f"{base_name}_converted.{output_format}")
+    output_file = filedialog.asksaveasfilename(
+        title="Save converted video as",
+        defaultextension=f".{output_format}",
+        initialfile=default_output,
+        filetypes=[("Video", f"*.{output_format}")]
+    )
+    if not output_file:
+        messagebox.showwarning("Warning", "No save location specified.")
+        return
 
-    label = ttk.Label(format_window, text="Choose the output format:")
-    label.pack(pady=10)
+    # Get video duration in seconds for progress calculation
+    total_duration = get_video_duration(video_file)
 
-    formats = ['mp4', 'avi', 'mov']
-    selected_format = tk.StringVar(value=formats[0])
-    for fmt in formats:
-        rb = ttk.Radiobutton(format_window, text=fmt.upper(), variable=selected_format, value=fmt)
-        rb.pack(anchor='w', padx=20)
+    # --- Progress Window Setup ---
+    progress_win = Toplevel(root)
+    progress_win.title("Converting Video")
+    progress_win.geometry("400x120")
+    progress_win.resizable(False, False)
+    progress_win.grab_set()
 
-    def confirm_format():
-        format_window.destroy()
-        # Suggest default output file name based on input file name and chosen format
-        base_name = os.path.splitext(os.path.basename(video_file))[0]
-        default_output = os.path.join(os.path.dirname(video_file), f"{base_name}_converted.{selected_format.get()}")
-        output_file = filedialog.asksaveasfilename(
-            title="Save converted video as",
-            defaultextension=f".{selected_format.get()}",
-            initialfile=default_output,
-            filetypes=[("Video", f"*.{selected_format.get()}")]
-        )
-        if not output_file:
-            messagebox.showwarning("Warning", "No save location specified.")
-            return
+    video_name = os.path.basename(video_file)
+    lbl = ttk.Label(progress_win, text=f"Converting {video_name} to {output_format.upper()}...")
+    lbl.pack(pady=10)
 
-        success, msg = convert_video(video_file, output_file, selected_format.get())
-        if success:
-            messagebox.showinfo("Success", msg)
-        else:
-            messagebox.showerror("Error", msg)
+    progress_var = DoubleVar()
+    progress_bar = ttk.Progressbar(progress_win, variable=progress_var, maximum=100, length=350)
+    progress_bar.pack(pady=10)
 
-    btn_confirm = ttk.Button(format_window, text="Confirm", command=confirm_format)
-    btn_confirm.pack(pady=10)
+    # This variable will hold the ffmpeg process so we can terminate it if needed
+    ffmpeg_process = [None]
+
+    def on_close():
+        # If the user closes the window, terminate the ffmpeg process if running
+        if ffmpeg_process[0] is not None and ffmpeg_process[0].poll() is None:
+            ffmpeg_process[0].terminate()
+            messagebox.showinfo("Cancelled", "Video conversion cancelled.")
+        progress_win.destroy()
+
+    progress_win.protocol("WM_DELETE_WINDOW", on_close)
+
+    def run_conversion():
+        try:
+            # Build ffmpeg command
+            if output_format.lower() == 'mp4':
+                vcodec = 'libx264'
+                acodec = 'aac'
+            elif output_format.lower() == 'avi':
+                vcodec = 'mpeg4'
+                acodec = 'mp3'
+            elif output_format.lower() == 'mov':
+                vcodec = 'libx264'
+                acodec = 'aac'
+            else:
+                vcodec = 'libx264'
+                acodec = 'aac'
+
+            # Prepare ffmpeg command with progress info
+            cmd = [
+                'ffmpeg',
+                '-y',  # Overwrite output
+                '-i', video_file,
+                '-vcodec', vcodec,
+                '-acodec', acodec,
+                output_file
+            ]
+
+            # Start ffmpeg process
+            ffmpeg_process[0] = proc = (
+                ffmpeg
+                .input(video_file)
+                .output(output_file, vcodec=vcodec, acodec=acodec)
+                .global_args('-y')
+                .compile()
+            )
+            # Use subprocess directly to capture output
+            import subprocess
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                bufsize=1
+            )
+            ffmpeg_process[0] = process
+
+            # Regex to extract time= from ffmpeg output
+            time_pattern = re.compile(r'time=(\d+):(\d+):(\d+)\.(\d+)')
+
+            for line in process.stderr:
+                # Parse ffmpeg output for progress
+                match = time_pattern.search(line)
+                if match:
+                    hours, minutes, seconds, ms = map(int, match.groups())
+                    current_time = hours * 3600 + minutes * 60 + seconds + ms / 100.0
+                    percent = min((current_time / total_duration) * 100, 100)
+                    progress_var.set(percent)
+                    progress_win.update_idletasks()
+            process.wait()
+
+            if process.returncode == 0:
+                progress_var.set(100)
+                progress_win.update_idletasks()
+                messagebox.showinfo("Success", "Video conversion completed successfully.")
+            else:
+                messagebox.showerror("Error", "Conversion failed or was cancelled.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {e}")
+        finally:
+            progress_win.destroy()
+
+    # Start conversion in a separate thread to keep UI responsive
+    threading.Thread(target=run_conversion, daemon=True).start()

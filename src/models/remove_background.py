@@ -68,7 +68,7 @@ def remove_background():
     win = Toplevel()
     win.title("Background Removed - Post Processing")
     win.configure(bg="#1C1C1C")
-
+    win.grab_set()
     # Variables for brush and undo stack
     brush_radius = 10  # Initial brush size
     undo_stack = []    # Stack to store previous image states for undo
@@ -125,6 +125,7 @@ def remove_background():
         manual_win = Toplevel(win)
         manual_win.title("Manual Eraser Mode")
         manual_win.configure(bg="#1C1C1C")
+        manual_win.grab_set()
 
         # Variables for zoom, brush, pan offset, and undo stack
         zoom_factor = [1.0]  # Mutable for nested functions

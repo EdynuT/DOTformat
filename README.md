@@ -1,58 +1,51 @@
 # DOTFORMAT
 
-DOTFORMAT is a project developed by Edynu to handle various file conversion and manipulation tasks, completely free and open access.
+DOTFORMAT is a Python project developed by Edynu to handle various file conversion and manipulation tasks, completely free and open access.
 
 ## Version
 
-**Current Version:** 1.1.0
+**Current Version:** 1.2.0
 
 ### Changelog
 
 **1.2.0**
 
-- Added a background remover for your images with a eraser mode
+- (Finally) Added the **PDF Password** to the user interface in the pdf_manager_action function.
+(How did I forget about this all this time?)
 
-    - Adjustable brush size with visual indicators
+- Merged the PDF files (pdf_to_png.py, pdf_to_docx.py, and pdf_password.py) into a single one called **pdf_manager.py** to keep the code clean.
 
-    - Brush preview follows the mouse
+- Added a background remover script using the **rembg** library. See the [Features](#features) section for more details.
 
-    - Zoom (centered on cursor) and pan with right mouse button
+- Added a **main.py** file for easier access to the program's entry point.
 
-    - Undo for manual edits
+- Moved the **setup.py** file from the **src** folder to the main folder for easier access to the setup script.
 
-    - Option to save or discard manual changes
+- Improved the video converter with a real-time progress bar and the ability to cancel conversion during processing.
 
-    - Enhanced post-processing: clean mask, fill holes, smooth edges
-
-    - Better usability and interface layout for manual editing
-
-- Add a [main.py] file for a easier search for the start of the program
-
-- Changed the [setup.py] file from [src] folder for a easier search for the setup of the system
-
-- Improved the compatibility with other systems in general
+- Improved compatibility with other systems in general.
 
 **1.1.0**
 
-- The folder name [converters] was changed to [models]
+- The folder name **converters** was changed to **models**.
 
-- Compatibility bug fixes with other systems lenguages (PT-BR)
+- Compatibility bug fixes with other system languages (PT-BR).
 
-- Automatic installation of ffmpeg and autonomous addition to the system PATH
+- Automatic installation of ffmpeg and autonomous addition to the system PATH.
 
-- Code tranlation for english and added some comments for better general understending
+- Code translation to English and added some comments for better general understanding.
 
-- Possibility of converting videos to other formats besides MP4
+- Possibility of converting videos to other formats besides MP4.
 
 **1.0.0**
 
-- Project release
+- Project release.
 
 ## Requirements
 
-- The stronger the CPU and the more RAM, the better the performance
+- The stronger the CPU and the higher the RAM frequency, the better the performance.
 
-- At least 3 GB of space
+- At least 2 GB of free space.
 
 - Python version 3.11.9
 
@@ -66,17 +59,24 @@ Below are the features currently available:
 
 - **PDF to PNG:** Convert PDF documents into PNG images for easy viewing.
 
-- **PDF to Word:** Convert PDFs into editable Word documents.
-(This script may have formatting issues when the PDF has tables or when the letters are blurred.)
+- **PDF to Word (.docx):** Convert PDFs into editable Word documents.
+(This script may have formatting issues when the PDF has tables or when the text is blurry.)
+
+- **PDF Passwords:** Set a password for a chosen PDF file for better security.
 
 - **QR Code Generator:** Create QR codes from inserted text.
 
-- **PDF Passwords:** Generate a password for a chosen PDF file for better security.
+- **Video Conversion:** Convert videos from any format to MP4, AVI, or MOV for better usability.
 
-- **Video Conversion:** Convert videos from any format to MP4, AVI or MOV for better usability.
-(This script uses more CPU and RAM than usual, older systems will have a bit more slowness when using it, but will work.)
+    - MP4 for better image resolution. Most common for everything.
 
-- **Remove Background:** Removes the background of the image that you choose, with advanced post-processing options:
+    - AVI for higher frame rate at the expense of quality.
+
+    - MOV for good resolution and frame rate.
+
+(This script uses more CPU and RAM than usual. Older systems may experience some slowness when using it, but it will work.)
+
+- **Remove Background:** Removes the background of the image you choose, with advanced post-processing options:
 
     - **Post-processing tools:** Clean mask, fill small holes, and smooth edges with one click.
 
@@ -110,7 +110,7 @@ DOTFORMAT/
 ├── src/
 │   ├──__pycache__/
 │   ├──images/                  # Image resources
-│   │   ├──image.ico            # Shortcut cover for desktop (unfortunately you still have to do this manualy)
+│   │   ├──image.ico            # Shortcut icon for desktop (unfortunately you still have to do this manually)
 │   │   └──image.png            # Image for the executable interface            
 │   ├── models/                 # File conversion models
 │   │   ├──__pycache__/
@@ -118,21 +118,19 @@ DOTFORMAT/
 │   │   ├── audio_to_text.py
 │   │   ├── convert_image.py
 │   │   ├── convert_video.py
-│   │   ├── pdf_password.py
-│   │   ├── pdf_to_docx.py
-│   │   ├── pdf_to_png.py
+│   │   ├── pdf_manager.py
 │   │   ├── qrcode_generator.py
 │   │   └── remove_background.py
 │   └── gui.py                  # Graphical user interface
 ├── DOTformat.spec              # Project build specification file
-├── LICENCE                     # Project license
-├── main.py                     # Start button of the program
+├── LICENSE                     # Project license
+├── main.py                     # Program entry point
 ├── README.md                   # Project documentation
 ├── requirements.txt            # List of required Python libraries
-└── setup.py                    # Creates the virtual environment, installs all dependencies and create the .exe file
+└── setup.py                    # Creates the virtual environment, installs all dependencies, and creates the .exe file
 ```
 
-## Instalation
+## Installation
 Follow the steps below to set up the virtual environment, install the necessary dependencies, and create the executable file:
 
 - Clone the repository:
@@ -148,15 +146,15 @@ cd DOTformat
 python setup.py
 ```
 
-This way, the program should install without major issues. 
+This way, the program should install without major issues.
 
-Just a warning, when creating the executable, the log may get stuck with this message:
+Just a warning: when creating the executable, the log may get stuck with this message:
 
 ```sh
 Building PKG (CArchive) DOTformat.pkg
 ```
 
-Don't worry, the file is a little heavier than normal, so it takes some minutes to build.
+Don't worry, the file is a little larger than normal, so it takes a few minutes to build.
 
 ## Changes
 
@@ -210,4 +208,6 @@ SOFTWARE.
 
 ## Message
 
-Rarely I will make just minor bug fixes, but might happen. ¯\_(ツ)_/¯
+It is highly recommended to use DOTFORMAT version >=1.2.0 if you want to have access to the background remover and PDF password maker.
+
+I will rarely make small bug fixes, but it may happen at some point.
