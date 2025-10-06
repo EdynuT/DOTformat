@@ -10,50 +10,8 @@ src_dir = os.path.join(base_dir, 'src')
 # Note that some libraries are installed with one name and imported with another:
 # e.g., "ffmpeg-python" is imported as "ffmpeg", "pillow" as "PIL", 
 #       "python-docx" as "docx", "PyMuPDF" as "fitz", "SpeechRecognition" as "speech_recognition", etc.
-libraries = [
-    'altgraph',
-    'cffi',
-    'chardet',
-    'colorama',
-    'decorator',
-    'Deprecated',
-    'ffmpeg-python',
-    'fire',
-    'fonttools',
-    'future',
-    'imageio',
-    'imageio-ffmpeg',
-    'img2pdf',
-    'lxml',
-    'moviepy',
-    'numpy',
-    'opencv-python-headless',
-    'packaging',
-    'pdf2docx',
-    'pdf2image',
-    'pefile',
-    'pikepdf',
-    'pillow',
-    'proglog',
-    'pycparser',
-    'pydub',
-    'pyinstaller',
-    'pyinstaller-hooks-contrib',
-    'PyMuPDF',
-    'PyPDF2',
-    'python-docx',
-    'python-dotenv',
-    'pywin32-ctypes',
-    'qrcode',
-    'reportlab',
-    'setuptools',
-    'SpeechRecognition',
-    'termcolor',
-    'tqdm',
-    'typing_extensions',
-    'wrapt'
-]
 
+libraries = "requirements.txt"
 datas = []
 binaries = []
 hiddenimports = []
@@ -73,8 +31,8 @@ datas += [
 ]
 
 a = Analysis(
-    [os.path.join(src_dir, 'gui.py')],
-    pathex=[src_dir],
+    [os.path.join(base_dir, 'main.py')],
+    pathex=[base_dir],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

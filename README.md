@@ -1,37 +1,73 @@
 # DOTFORMAT
 
-DOTFORMAT is a project developed by Edynu to handle various file conversion and manipulation tasks, completely free and open access.
+DOTFORMAT is a Python project developed by Edynu to handle various file conversion and manipulation tasks, completely free and open access.
 
 ## Version
 
-**Current Version:** 1.1.0
+**Current Version:** 1.2.1
 
 ### Changelog
 
+**1.2.1**
+
+- Reorganized `requirements.txt` to install lighter/core dependencies first and heavy scientific/ML stack (Pillow, NumPy, numba/llvmlite, onnxruntime, opencv, scikit-image, scipy) at the end to reduce resolver breakage.
+
+- Added lazy import strategy for background removal (now `rembg`, `numpy`, `cv2` only load when the feature is invoked) preventing startup crashes if those packages are absent.
+
+- Clarified optional nature of `rembg` (kept commented so regular users can install faster / fewer issues).
+
+- Improved error messaging for missing heavy dependencies (friendly instructions instead of hard tracebacks).
+
+- General dependency stability fixes for Python 3.10 builds (older compatible pins; avoided NumPy 2.x incompatibilities).
+
+**1.2.0**
+
+- (Finally) Added the **PDF Password** to the user interface in the pdf_manager_action function.
+(How did I forget about this all this time?)
+
+- Merged the PDF files (pdf_to_png.py, pdf_to_docx.py, and pdf_password.py) into a single one called **pdf_manager.py** to keep the code clean.
+
+- Added a background remover script using the **rembg** library. See the [Features](#features) section for more details.
+
+- Added a **main.py** file for easier access to the program's entry point.
+
+- Moved the **setup.py** file from the **src** folder to the main folder for easier access to the setup script.
+
+- Improved the video converter with a real-time progress bar and the ability to cancel conversion during processing.
+
+- Improved compatibility with other systems in general.
+
 **1.1.0**
 
-- The folder name *converters* was changed to *models*
+- The folder name **converters** was changed to **models**.
 
-- Compatibility bug fixes with other systems lenguages (PT-BR)
+- Compatibility bug fixes with other system languages (PT-BR).
 
-- Automatic installation of ffmpeg and autonomous addition to the system PATH
+- Automatic installation of ffmpeg and autonomous addition to the system PATH.
 
-- Code tranlation for english and added some comments for better general understending
+- Code translation to English and added some comments for better general understanding.
 
-- Possibility of converting videos to other formats besides MP4
+- Possibility of converting videos to other formats besides MP4.
 
 **1.0.0**
 
-- Project release
+- Project release.
 
 ## Requirements
 
-- The stronger the CPU, the better the performance
 
-- At least 3 GB of space
 
-- Python version 3.11.9
 
+## Quick dependency check
+----------------------
+
+If you run into "Import ... could not be resolved" warnings or build
+errors when creating the executable, there's a helper script:
+
+    python src/check_deps.py
+
+It will list missing packages and offer to install them into the
+currently active Python environment.
 ## Features
 
 Below are the features currently available:
@@ -42,15 +78,35 @@ Below are the features currently available:
 
 - **PDF to PNG:** Convert PDF documents into PNG images for easy viewing.
 
-- **PDF to Word:** Convert PDFs into editable Word documents.
-(This script may have formatting issues when the PDF has tables or when the letters are blurred.)
+- **PDF to Word (.docx):** Convert PDFs into editable Word documents.
+(This script may have formatting issues when the PDF has tables or when the text is blurry.)
+
+- **PDF Passwords:** Set a password for a chosen PDF file for better security.
 
 - **QR Code Generator:** Create QR codes from inserted text.
 
-- **PDF Passwords:** Generate a password for a chosen PDF file for better security.
+- **Video Conversion:** Convert videos from any format to MP4, AVI, or MOV for better usability.
 
-- **Video Conversion:** Convert videos from any format to MP4, AVI or MOV for better usability.
-(This script uses more CPU and RAM than usual, older systems will have a bit more slowness when using it.)
+    - MP4 for better image resolution. Most common for everything.
+
+    - AVI for higher frame rate at the expense of quality.
+
+    - MOV for good resolution and frame rate.
+
+(This script uses more CPU and RAM than usual. Older systems may experience some slowness when using it, but it will work.)
+
+- **Remove Background:** Removes the background of the image you choose, with advanced post-processing options:
+
+    - **Post-processing tools:** Clean mask, fill small holes, and smooth edges with one click.
+
+    - **Manual Eraser Mode:** After automatic background removal, you can manually erase or restore areas of the image using a configurable brush.
+
+        - Adjustable brush size (vertical slider from 1 to 100, with visual indicators).
+        - Brush preview follows the mouse cursor.
+        - Zoom in/out with mouse scroll (up to 500%), centered on the cursor.
+        - Pan the image by dragging with the right mouse button.
+        - Undo last manual actions.
+        - Option to save or discard manual edits before returning to the main window.
 
 ## Project Structure
 
@@ -58,29 +114,30 @@ The project structure is organized as follows:
 
 ```sh
 DOTFORMAT/
-├── src/                         
+├── src/
+│   ├──__pycache__/
 │   ├──images/                  # Image resources
-│   │   ├──image.ico            # Shortcut cover for desktop
+│   │   ├──image.ico            # Shortcut icon for desktop (unfortunately you still have to do this manually)
 │   │   └──image.png            # Image for the executable interface            
 │   ├── models/                 # File conversion models
 │   │   ├──__pycache__/
-│   │   ├── __init__.py          
-│   │   ├── audio_to_text.py     
-│   │   ├── convert_image.py     
-│   │   ├── convert_video.py     
-│   │   ├── pdf_password.py        
-│   │   ├── pdf_to_docx.py      
-│   │   ├── pdf_to_png.py        
-│   │   └── qrcode_generator.py 
-│   ├── gui.py                  # Graphical user interface
-│   └── setup.py                # Creates the virtual environment, installs all dependencies and create the .exe file
+│   │   ├── __init__.py
+│   │   ├── audio_to_text.py
+│   │   ├── convert_image.py
+│   │   ├── convert_video.py
+│   │   ├── pdf_manager.py
+│   │   ├── qrcode_generator.py
+│   │   └── remove_background.py
+│   └── gui.py                  # Graphical user interface
 ├── DOTformat.spec              # Project build specification file
-├── LICENCE                     # Project license
+├── LICENSE                     # Project license
+├── main.py                     # Program entry point
 ├── README.md                   # Project documentation
-└── requirements.txt            # List of required Python libraries
+├── requirements.txt            # List of required Python libraries
+└── setup.py                    # Creates the virtual environment, installs all dependencies, and creates the .exe file
 ```
 
-## Instalation
+## Installation
 Follow the steps below to set up the virtual environment, install the necessary dependencies, and create the executable file:
 
 - Clone the repository:
@@ -96,15 +153,15 @@ cd DOTformat
 python setup.py
 ```
 
-This way, the program should install without major issues. 
+This way, the program should install without major issues.
 
-Just a warning, when creating the executable, the log may get stuck with this message:
+Just a warning: when creating the executable, the log may get stuck with this message:
 
 ```sh
 Building PKG (CArchive) DOTformat.pkg
 ```
 
-Don't worry, the file is a little heavier than normal, so it takes some minutes to build.
+Don't worry, the file is a little larger than normal, so it takes a few minutes to build.
 
 ## Changes
 
@@ -112,7 +169,7 @@ Don't worry, the file is a little heavier than normal, so it takes some minutes 
 
 ```sh
 cd DOTformat
-pyi-makespec --name DOTformat --onefile --windowed src\gui.py
+pyi-makespec --name DOTformat --onefile --windowed main.py
 ```
 
 - Then, create the executable file:
@@ -129,7 +186,7 @@ If you’d like to contribute, please follow these guidelines:
 1. Fork the repository.
 2. Create a new branch for your feature or bug fix.
 3. Write clear, concise commit messages.
-4. Ensure that your code follows the existing style.
+4. Ensure that your code follows the existing style and is well commented.
 5. Submit a pull request describing your changes and why they’re needed.
 
 ## License
@@ -155,3 +212,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Message
+
+It is highly recommended to use DOTFORMAT version >=1.2.0 if you want to have access to the background remover and PDF password maker.
+
+I will rarely make small bug fixes, but it may happen at some point.

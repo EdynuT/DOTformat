@@ -1,0 +1,40 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+env/
+.venv/
+venv/
+
+# Build / distribution artifacts
+build/
+dist/
+*.spec
+
+# FFmpeg bundle
+ffmpeg/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs / temp
+*.log
+pip-wheel-metadata/
+*.tmp
+
+# OS specifics
+.DS_Store
+Thumbs.db
+
+# PyInstaller
+*.manifest
+*.dll
+*.pkg
+
+# Local scripts/cache
+.env
