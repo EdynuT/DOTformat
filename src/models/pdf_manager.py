@@ -23,6 +23,7 @@ def protect_pdf(input_pdf, password, output_pdf):
       - password (str): The password to secure the PDF (must be provided by the user).
       - output_pdf (str): Path where the protected PDF will be saved.
     """
+<<<<<<< HEAD
     pdf_reader = PyPDF2.PdfReader(input_pdf)
     pdf_writer = PyPDF2.PdfWriter()
     for page in pdf_reader.pages:
@@ -30,6 +31,18 @@ def protect_pdf(input_pdf, password, output_pdf):
     pdf_writer.encrypt(password)
     with open(output_pdf, "wb") as pdf_out:
         pdf_writer.write(pdf_out)
+=======
+    try:
+        pdf_reader = PyPDF2.PdfReader(input_pdf)
+        pdf_writer = PyPDF2.PdfWriter()
+        for page in pdf_reader.pages:
+            pdf_writer.add_page(page)
+        pdf_writer.encrypt(password)
+        with open(output_pdf, "wb") as pdf_out:
+            pdf_writer.write(pdf_out)
+    except Exception as e:
+        return False, str(e)
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
 
 def pdf_to_png(pdf_file, output_dir):
     """

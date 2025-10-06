@@ -1,16 +1,26 @@
 from tkinter import filedialog, messagebox, Toplevel, Button, Scale, Canvas, Label
 from PIL import Image, ImageFilter, ImageTk
+<<<<<<< HEAD
 from rembg import remove
 import numpy as np
 import cv2
 import os
 
+=======
+import os
+
+# NOTE: rembg, numpy and cv2 are heavy native packages and may not be
+# available in minimal environments. We lazy-import them inside
+# remove_background() so the main GUI can start even if they are missing.
+
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
 def clean_mask(image):
     """
     Applies a median filter to the image to remove small noise and speckles from the mask.
     """
     return image.filter(ImageFilter.MedianFilter(size=3))
 
+<<<<<<< HEAD
 def fill_small_holes(pil_image):
     """
     Fills small holes in the alpha channel of an RGBA image using morphological operations.
@@ -24,6 +34,8 @@ def fill_small_holes(pil_image):
         return Image.fromarray(img)
     return pil_image
 
+=======
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
 def smooth_edges(pil_image):
     """
     Smooths the edges of the alpha channel using a Gaussian blur to reduce harsh transitions.
@@ -48,7 +60,11 @@ def remove_background():
     filetypes = [("Images", "*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico"), ("All Files", "*.*")]
     input_path = filedialog.askopenfilename(title="Select image", filetypes=filetypes)
     if not input_path:
+<<<<<<< HEAD
         messagebox.showinfo("No image selected.")
+=======
+        messagebox.showinfo("Information", "No image selected.")
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
         return
 
     # Suggest output filename on Desktop
@@ -56,6 +72,42 @@ def remove_background():
     base, ext = os.path.splitext(os.path.basename(input_path))
     default_output = os.path.join(desktop, f"{base}_nobg.png")
 
+<<<<<<< HEAD
+=======
+    # Lazy imports and friendly error messages
+    try:
+        import numpy as np
+    except Exception:
+        messagebox.showerror(
+            "Missing dependency",
+            "The package 'numpy' is required for background removal.\n"
+            "Run: python -m pip install numpy"
+        )
+        return
+
+    try:
+        import cv2
+    except Exception:
+        messagebox.showerror(
+            "Missing dependency",
+            "The package 'opencv-python-headless' (or 'opencv-python') is required.\n"
+            "Run: python -m pip install opencv-python-headless"
+        )
+        return
+
+    try:
+        from rembg import remove
+    except Exception:
+        messagebox.showerror(
+            "Missing dependency",
+            "The package 'rembg' (and its dependencies like onnxruntime/pymatting) is required.\n"
+            "Install it only if you need background removal, e.g.:\n"
+            "  python -m pip install rembg\n"
+            "Or use a separate conda environment for rembg/pymatting/numba."
+        )
+        return
+
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
     try:
         input_image = Image.open(input_path)
         # Remove background using rembg
@@ -300,6 +352,7 @@ def remove_background():
         output_image = clean_mask(output_image)
         update_canvas_image(output_image)
 
+<<<<<<< HEAD
     def apply_fill_holes():
         """
         Fills small holes in the alpha channel.
@@ -309,6 +362,8 @@ def remove_background():
         output_image = fill_small_holes(output_image)
         update_canvas_image(output_image)
 
+=======
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
     def apply_smooth_edges():
         """
         Smooths the alpha channel edges.
@@ -346,6 +401,7 @@ def remove_background():
     btn_clean = Button(win, text="Clean Mask", command=apply_clean_mask)
     btn_clean.grid(row=4, column=0, padx=5, pady=5)
 
+<<<<<<< HEAD
     btn_fill = Button(win, text="Fill Holes", command=apply_fill_holes)
     btn_fill.grid(row=5, column=0, padx=5, pady=5)
 
@@ -358,3 +414,14 @@ def remove_background():
 
     btn_exit_no_changes = Button(win, text="Exit Without Editing", command=save_without_editing)
     btn_exit_no_changes.grid(row=7, column=1, padx=5, pady=5, sticky="w")
+=======
+    btn_smooth = Button(win, text="Smooth Edges", command=apply_smooth_edges)
+    btn_smooth.grid(row=5, column=0, padx=5, pady=5)
+
+    # Save and exit buttons
+    btn_exit = Button(win, text="Save and Exit", command=save_and_exit)
+    btn_exit.grid(row=6, column=0, padx=5, pady=5, sticky="e")
+
+    btn_exit_no_changes = Button(win, text="Exit Without Editing", command=save_without_editing)
+    btn_exit_no_changes.grid(row=6, column=1, padx=5, pady=5, sticky="w")
+>>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)

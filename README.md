@@ -4,9 +4,21 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 1.2.0
+**Current Version:** 1.2.1
 
 ### Changelog
+
+**1.2.1**
+
+- Reorganized `requirements.txt` to install lighter/core dependencies first and heavy scientific/ML stack (Pillow, NumPy, numba/llvmlite, onnxruntime, opencv, scikit-image, scipy) at the end to reduce resolver breakage.
+
+- Added lazy import strategy for background removal (now `rembg`, `numpy`, `cv2` only load when the feature is invoked) preventing startup crashes if those packages are absent.
+
+- Clarified optional nature of `rembg` (kept commented so regular users can install faster / fewer issues).
+
+- Improved error messaging for missing heavy dependencies (friendly instructions instead of hard tracebacks).
+
+- General dependency stability fixes for Python 3.10 builds (older compatible pins; avoided NumPy 2.x incompatibilities).
 
 **1.2.0**
 
@@ -43,12 +55,19 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Requirements
 
-- The stronger the CPU and the higher the RAM frequency, the better the performance.
 
-- At least 2 GB of free space.
 
-- Python version 3.11.9
 
+## Quick dependency check
+----------------------
+
+If you run into "Import ... could not be resolved" warnings or build
+errors when creating the executable, there's a helper script:
+
+    python src/check_deps.py
+
+It will list missing packages and offer to install them into the
+currently active Python environment.
 ## Features
 
 Below are the features currently available:
