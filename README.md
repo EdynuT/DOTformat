@@ -1,4 +1,4 @@
-# DOTFORMAT
+﻿# DOTFORMAT
 
 DOTFORMAT is a Python project developed by Edynu to handle various file conversion and manipulation tasks, completely free and open access.
 
@@ -7,6 +7,27 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 **Current Version:** 1.2.1
 
 ### Changelog
+
+**Unreleased (Developing branch)**
+
+- Local user authentication (PBKDF2-HMAC-SHA256 password hashing) required before feature access.
+
+- Envelope key architecture: a random master key (K_APP) is generated once and wrapped per user (AES-EAX + PBKDF2) enabling password changes without re‑encrypting the whole DB.
+
+- Optional full log database encryption on close (dotformat.db → dotformat.db.dotf). Automatic migration of older password-direct encrypted files; legacy password fallback then creates a wrapper.
+
+- Post-login “Add User” dialog creates additional accounts and immediately provisions a key wrapper.
+
+- Centralized per-user data directory for persistence (platformdirs): databases now stored under the OS user data path instead of beside the executable, making PyInstaller one-file updates safe.
+
+- Improved decryption + schema initialization ordering (prevents accidental blank DB creation).
+
+- Silent one-time migration of legacy DB/auth DB to new data directory if found in old location.
+
+> Note: Version number remains 1.2.1 until a formal 2.0.0 release is tagged; these features are available on the Developing branch.
+
+**2.0.0**
+*(Planned – content moved to Unreleased while in development)*
 
 **1.2.1**
 
@@ -53,21 +74,6 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 - Project release.
 
-## Requirements
-
-
-
-
-## Quick dependency check
-----------------------
-
-If you run into "Import ... could not be resolved" warnings or build
-errors when creating the executable, there's a helper script:
-
-    python src/check_deps.py
-
-It will list missing packages and offer to install them into the
-currently active Python environment.
 ## Features
 
 Below are the features currently available:
@@ -107,6 +113,10 @@ Below are the features currently available:
         - Pan the image by dragging with the right mouse button.
         - Undo last manual actions.
         - Option to save or discard manual edits before returning to the main window.
+
+- **Local Authentication & Audit:** Users must log in (or register first user) before accessing features. All feature executions are logged and associated with the username.
+
+- **Optional Encrypted Log Storage:** Before exiting you may encrypt the SQLite log database with a password. If encrypted, you will be prompted to decrypt on next launch; skipping creates a fresh empty log instead.
 
 ## Project Structure
 
@@ -180,41 +190,56 @@ pyinstaller DOTformat.spec
 
 ## Contributions
 
-We welcome contributions to improve DOTFORMAT!  
-If you’d like to contribute, please follow these guidelines:
+I welcome contributions to improve DOTFORMAT!  
+If youâ€™d like to contribute, please follow these guidelines:
 
 1. Fork the repository.
 2. Create a new branch for your feature or bug fix.
 3. Write clear, concise commit messages.
 4. Ensure that your code follows the existing style and is well commented.
-5. Submit a pull request describing your changes and why they’re needed.
+5. Submit a pull request describing your changes and why theyâ€™re needed.
 
 ## License
 
 MIT License
-
-Copyright (c) 2025 Edynu
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 ## Message
 
 It is highly recommended to use DOTFORMAT version >=1.2.0 if you want to have access to the background remover and PDF password maker.
 
 I will rarely make small bug fixes, but it may happen at some point.
+
+## Security & Privacy
+
+DOTformat stores only local data; no information is transmitted externally.
+
+Authentication:
+- Passwords are hashed with PBKDF2-HMAC-SHA256 (salt + iterations) and never stored in plaintext.
+- The first run (with no users) opens directly in registration mode.
+
+Logging:
+- Every feature invocation is recorded with feature name, (optional) input/output paths, status, detail (truncated), timestamp, and username.
+- The log aids troubleshooting and auditing on multi-user local machines.
+
+Encryption (optional):
+- On exit you may choose to encrypt the SQLite database (dotformat.db) into dotformat.db.dotf using AES (EAX mode) with a key derived via PBKDF2.
+- Encrypted file format includes magic header, version, salt, nonce, tag, and ciphertext. Integrity and confidentiality are provided.
+- Decryption occurs at startup if the encrypted file exists and you supply the correct password. If you cancel or fail, a new empty log will be initialized (the encrypted file remains).
+- Keep your password safe—there is no recovery mechanism.
+
+Threat Model Notes:
+- This protects against casual/local inspection if the machine is shared, but does not mitigate malware or a user who has access while the app is running (since the DB must be plaintext during active use).
+- Secure deletion attempts to overwrite the plaintext DB before removal, but on some filesystems remnants may still exist (typical limitation). For stronger guarantees use full-disk encryption.
+
+## Upgrading from 1.x
+
+1. Remove any old conflicting virtual environment and recreate with Python 3.10.
+2. Install dependencies from the cleaned requirements.txt.
+3. Run the application; register initial user if prompted.
+4. (Optional) Encrypt existing log on first exit if desired.
+
+## Roadmap Ideas
+
+- Pluggable export (CSV / JSON) for log history.
+- Optional per-feature settings persistence.
+- Graceful background removal dependency detection UI.

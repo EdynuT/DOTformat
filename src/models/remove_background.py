@@ -1,118 +1,93 @@
+"""Background removal tool with optional heavy dependencies (rembg, numpy, cv2).
+
+This module defers importing heavy libraries until the user invokes the
+background removal action, so the rest of the GUI can load even if they
+are not installed. Errors are reported with friendly dialogs.
+"""
+
 from tkinter import filedialog, messagebox, Toplevel, Button, Scale, Canvas, Label
 from PIL import Image, ImageFilter, ImageTk
-<<<<<<< HEAD
-from rembg import remove
-import numpy as np
-import cv2
 import os
 
-=======
-import os
 
-# NOTE: rembg, numpy and cv2 are heavy native packages and may not be
-# available in minimal environments. We lazy-import them inside
-# remove_background() so the main GUI can start even if they are missing.
-
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
-def clean_mask(image):
-    """
-    Applies a median filter to the image to remove small noise and speckles from the mask.
-    """
+def clean_mask(image: Image.Image) -> Image.Image:
+    """Apply a median filter to remove small noise in the alpha/mask."""
     return image.filter(ImageFilter.MedianFilter(size=3))
 
-<<<<<<< HEAD
-def fill_small_holes(pil_image):
-    """
-    Fills small holes in the alpha channel of an RGBA image using morphological operations.
-    """
-    img = np.array(pil_image)
-    if img.shape[2] == 4:
-        alpha = img[:, :, 3]
-        mask = cv2.threshold(alpha, 0, 255, cv2.THRESH_BINARY)[1]
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5,5),np.uint8))
-        img[:, :, 3] = mask
-        return Image.fromarray(img)
+
+def fill_small_holes(pil_image: Image.Image) -> Image.Image:
+    """Fill small holes in alpha channel (best effort if deps present)."""
+    try:
+        import numpy as np  # type: ignore
+        import cv2  # type: ignore
+    except Exception:
+        return pil_image
+    try:
+        img = np.array(pil_image)
+        if img.shape[2] == 4:
+            alpha = img[:, :, 3]
+            mask = cv2.threshold(alpha, 0, 255, cv2.THRESH_BINARY)[1]
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+            img[:, :, 3] = mask
+            return Image.fromarray(img)
+    except Exception:
+        return pil_image
     return pil_image
 
-=======
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
-def smooth_edges(pil_image):
-    """
-    Smooths the edges of the alpha channel using a Gaussian blur to reduce harsh transitions.
-    """
+
+def smooth_edges(pil_image: Image.Image) -> Image.Image:
+    """Slight Gaussian blur on alpha to soften edges."""
     img = pil_image.convert("RGBA")
     r, g, b, a = img.split()
     a = a.filter(ImageFilter.GaussianBlur(radius=1))
     return Image.merge("RGBA", (r, g, b, a))
 
-def remove_background():
-    """
-    Opens a file dialog for the user to select an image, removes its background using rembg,
-    and opens a post-processing window where the user can:
-      - Clean mask
-      - Fill small holes
-      - Smooth edges
-      - Manually erase areas with a configurable brush (with preview)
-      - Undo actions
-      - Save the result
-    """
-    # Select image file
-    filetypes = [("Images", "*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico"), ("All Files", "*.*")]
+
+def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
+    """Open file dialog, remove background with rembg (if installed), allow post-processing."""
+    filetypes = [
+        ("Images", "*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico"),
+        ("All Files", "*.*")
+    ]
     input_path = filedialog.askopenfilename(title="Select image", filetypes=filetypes)
     if not input_path:
-<<<<<<< HEAD
-        messagebox.showinfo("No image selected.")
-=======
         messagebox.showinfo("Information", "No image selected.")
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
         return
 
-    # Suggest output filename on Desktop
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    base, ext = os.path.splitext(os.path.basename(input_path))
+    base, _ = os.path.splitext(os.path.basename(input_path))
     default_output = os.path.join(desktop, f"{base}_nobg.png")
 
-<<<<<<< HEAD
-=======
-    # Lazy imports and friendly error messages
+    # Lazy heavy imports
     try:
-        import numpy as np
+        import numpy as np  # type: ignore
     except Exception:
         messagebox.showerror(
             "Missing dependency",
-            "The package 'numpy' is required for background removal.\n"
-            "Run: python -m pip install numpy"
+            "Missing 'numpy'. Install with:\n  python -m pip install numpy"
         )
         return
-
     try:
-        import cv2
+        import cv2  # type: ignore
     except Exception:
         messagebox.showerror(
             "Missing dependency",
-            "The package 'opencv-python-headless' (or 'opencv-python') is required.\n"
-            "Run: python -m pip install opencv-python-headless"
+            "Missing 'opencv-python-headless'. Install with:\n  python -m pip install opencv-python-headless"
         )
         return
-
     try:
-        from rembg import remove
+        from rembg import remove  # type: ignore
     except Exception:
         messagebox.showerror(
             "Missing dependency",
-            "The package 'rembg' (and its dependencies like onnxruntime/pymatting) is required.\n"
-            "Install it only if you need background removal, e.g.:\n"
-            "  python -m pip install rembg\n"
-            "Or use a separate conda environment for rembg/pymatting/numba."
+            "Missing 'rembg'. Optional feature. Install with:\n  python -m pip install rembg"
         )
         return
 
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
     try:
         input_image = Image.open(input_path)
-        # Remove background using rembg
         output_image = remove(input_image)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover (runtime UX path)
         messagebox.showerror("Error", f"Failed to remove background:\n{e}")
         return
 
@@ -352,18 +327,12 @@ def remove_background():
         output_image = clean_mask(output_image)
         update_canvas_image(output_image)
 
-<<<<<<< HEAD
     def apply_fill_holes():
-        """
-        Fills small holes in the alpha channel.
-        """
+        """Fills small holes in alpha (best-effort if dependencies present)."""
         save_state()
         nonlocal output_image
         output_image = fill_small_holes(output_image)
         update_canvas_image(output_image)
-
-=======
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
     def apply_smooth_edges():
         """
         Smooths the alpha channel edges.
@@ -401,27 +370,12 @@ def remove_background():
     btn_clean = Button(win, text="Clean Mask", command=apply_clean_mask)
     btn_clean.grid(row=4, column=0, padx=5, pady=5)
 
-<<<<<<< HEAD
     btn_fill = Button(win, text="Fill Holes", command=apply_fill_holes)
     btn_fill.grid(row=5, column=0, padx=5, pady=5)
-
     btn_smooth = Button(win, text="Smooth Edges", command=apply_smooth_edges)
     btn_smooth.grid(row=6, column=0, padx=5, pady=5)
-
     # Save and exit buttons
     btn_exit = Button(win, text="Save and Exit", command=save_and_exit)
     btn_exit.grid(row=7, column=1, padx=5, pady=5, sticky="e")
-
     btn_exit_no_changes = Button(win, text="Exit Without Editing", command=save_without_editing)
     btn_exit_no_changes.grid(row=7, column=1, padx=5, pady=5, sticky="w")
-=======
-    btn_smooth = Button(win, text="Smooth Edges", command=apply_smooth_edges)
-    btn_smooth.grid(row=5, column=0, padx=5, pady=5)
-
-    # Save and exit buttons
-    btn_exit = Button(win, text="Save and Exit", command=save_and_exit)
-    btn_exit.grid(row=6, column=0, padx=5, pady=5, sticky="e")
-
-    btn_exit_no_changes = Button(win, text="Exit Without Editing", command=save_without_editing)
-    btn_exit_no_changes.grid(row=6, column=1, padx=5, pady=5, sticky="w")
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)

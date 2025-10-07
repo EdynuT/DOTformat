@@ -1,4 +1,5 @@
 import os
+from tkinter import messagebox
 import PyPDF2
 from pdf2docx import Converter
 from pdf2image import convert_from_path
@@ -7,13 +8,14 @@ def pdf_to_docx(pdf_file, docx_file):
     """
     Converts a PDF file to a DOCX file.
     """
-    try:
-        cv = Converter(pdf_file)
-        cv.convert(docx_file, start=0, end=None)
-        cv.close()
+    
+    cv = Converter(pdf_file)
+    cv.convert(docx_file, start=0, end=None)
+    cv.close()
+    if not pdf_file:
+        return messagebox.showerror("Information", "PDF file not selected.")
+    else:
         return True, f"DOCX file saved successfully at '{docx_file}'!"
-    except Exception as e:
-        return False, str(e)
 
 def protect_pdf(input_pdf, password, output_pdf):
     """
@@ -23,7 +25,7 @@ def protect_pdf(input_pdf, password, output_pdf):
       - password (str): The password to secure the PDF (must be provided by the user).
       - output_pdf (str): Path where the protected PDF will be saved.
     """
-<<<<<<< HEAD
+    
     pdf_reader = PyPDF2.PdfReader(input_pdf)
     pdf_writer = PyPDF2.PdfWriter()
     for page in pdf_reader.pages:
@@ -31,18 +33,9 @@ def protect_pdf(input_pdf, password, output_pdf):
     pdf_writer.encrypt(password)
     with open(output_pdf, "wb") as pdf_out:
         pdf_writer.write(pdf_out)
-=======
-    try:
-        pdf_reader = PyPDF2.PdfReader(input_pdf)
-        pdf_writer = PyPDF2.PdfWriter()
-        for page in pdf_reader.pages:
-            pdf_writer.add_page(page)
-        pdf_writer.encrypt(password)
-        with open(output_pdf, "wb") as pdf_out:
-            pdf_writer.write(pdf_out)
-    except Exception as e:
-        return False, str(e)
->>>>>>> 3a86e68 (Release 1.2.1: dependency installation ordering, lazy imports, README update)
+    return True, f"Protected PDF saved at '{output_pdf}'!"
+
+
 
 def pdf_to_png(pdf_file, output_dir):
     """

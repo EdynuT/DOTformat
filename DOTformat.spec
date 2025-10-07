@@ -6,29 +6,57 @@ from PyInstaller.utils.hooks import collect_all
 base_dir = os.path.abspath(os.getcwd())
 src_dir = os.path.join(base_dir, 'src')
 
-# List of libraries (import names; adjust if necessary)
-# Note that some libraries are installed with one name and imported with another:
-# e.g., "ffmpeg-python" is imported as "ffmpeg", "pillow" as "PIL", 
-#       "python-docx" as "docx", "PyMuPDF" as "fitz", "SpeechRecognition" as "speech_recognition", etc.
+"""PyInstaller spec for DOTformat.
 
-libraries = "requirements.txt"
+Fixed: Previously iterated over the string 'requirements.txt' which caused
+PyInstaller to attempt collecting single characters as modules. Now we
+explicitly (and defensively) collect a curated set of libraries if present.
+
+Optional heavy packages (e.g. rembg) are wrapped in try/except so missing
+ones won't break the build; the GUI handles absence with lazy imports.
+"""
+
+# Curated import names to try collecting. Only those actually installed will
+# contribute resources; failures are silently ignored to keep build robust.
+candidate_libs = [
+    'ffmpeg',              # from ffmpeg-python
+    'PIL',                 # pillow
+    'PyPDF2',
+    'pdf2docx',
+    'pdf2image',
+    'fitz',                # PyMuPDF
+    'qrcode',
+    'pydub',
+    'speech_recognition',
+    'img2pdf',
+    'pikepdf',
+    'rembg',               # optional - may be absent
+]
+
 datas = []
 binaries = []
 hiddenimports = []
 
-# Collect resources (data, binaries, and hidden imports) for each library
-for lib in libraries:
-    collected = collect_all(lib)
-    datas += collected[0]
-    binaries += collected[1]
-    hiddenimports += collected[2]
+for lib in candidate_libs:
+    try:
+        collected = collect_all(lib)
+        datas += collected[0]
+        binaries += collected[1]
+        hiddenimports += collected[2]
+    except Exception:
+        # Library not installed or failed to collect; skip.
+        pass
 
 # Project-specific data: includes the GUI image, conversion scripts, and ffmpeg.exe (if needed)
-datas += [
-    (os.path.join(src_dir, 'images', 'image.png'), 'images'),
-    (os.path.join(src_dir, 'models'), 'models'),
-    (os.path.join(base_dir, 'ffmpeg', 'bin', 'ffmpeg.exe'), os.path.join('ffmpeg', 'bin')),
-]
+if os.path.exists(os.path.join(src_dir, 'images', 'image.png')):
+    datas.append((os.path.join(src_dir, 'images', 'image.png'), 'images'))
+
+if os.path.exists(os.path.join(src_dir, 'models')):
+    datas.append((os.path.join(src_dir, 'models'), 'models'))
+
+ffmpeg_exe = os.path.join(base_dir, 'ffmpeg', 'bin', 'ffmpeg.exe')
+if os.path.exists(ffmpeg_exe):
+    datas.append((ffmpeg_exe, os.path.join('ffmpeg', 'bin')))
 
 a = Analysis(
     [os.path.join(base_dir, 'main.py')],
@@ -57,5 +85,6 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False
+    console=False,
+    icon=os.path.join(src_dir, 'images', 'image.ico') if os.path.exists(os.path.join(src_dir, 'images', 'image.ico')) else None
 )
