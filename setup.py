@@ -5,6 +5,13 @@ import venv
 import urllib.request, zipfile
 from pathlib import Path
 
+# Optional: allow a --portable flag so the built executable can force local DB storage
+PORTABLE_FLAG = '--portable'
+is_portable = PORTABLE_FLAG in sys.argv
+if is_portable:
+    # Remove it so PyInstaller isn't confused if passed through
+    sys.argv.remove(PORTABLE_FLAG)
+
 def install_ffmpeg(project_root):
     """
     Checks if the 'ffmpeg' folder already exists in the project.
@@ -117,6 +124,9 @@ def build_exe(project_root):
     spec_file = project_root / "DOTformat.spec"
     print("Building executable from the spec...")
     command = f'pyinstaller "{str(spec_file)}"'
+    if is_portable:
+        # Environment variable read later in runtime (you can modify gui/app_paths to honor this)
+        os.environ['DOTFORMAT_PORTABLE'] = '1'
     try:
         subprocess.check_call(command, shell=True)
     except subprocess.CalledProcessError as e:
@@ -138,3 +148,17 @@ if __name__ == "__main__":
     create_virtualenv(venv_dir)
     install_requirements(venv_dir, requirements_txt)
     build_exe(project_root)
+
+    # Inform user where runtime DBs will live
+    try:
+        if is_portable:
+            print("[INFO] Portable mode enabled: databases will reside next to the executable.")
+        else:
+            # Mirror logic in app_paths (simplified)
+            from platformdirs import user_data_dir  # type: ignore
+            data_dir = Path(user_data_dir('DOTformat', 'DOTformat'))
+            print(f"[INFO] Non-portable build: databases stored under: {data_dir}")
+            print("       Files: dotformat.db / auth.db (and dotformat.db.dotf when encrypted)")
+    except Exception:
+        print("[WARN] Could not determine data directory (platformdirs missing at setup time).")
+    print("Build complete.")

@@ -231,6 +231,32 @@ Threat Model Notes:
 - This protects against casual/local inspection if the machine is shared, but does not mitigate malware or a user who has access while the app is running (since the DB must be plaintext during active use).
 - Secure deletion attempts to overwrite the plaintext DB before removal, but on some filesystems remnants may still exist (typical limitation). For stronger guarantees use full-disk encryption.
 
+## Data Storage Location
+
+By default (non-portable builds) persistent files live in the OS user data directory (via platformdirs):
+
+| Platform | Path Example |
+|----------|--------------|
+| Windows  | %LOCALAPPDATA%\DOTformat |
+| macOS    | ~/Library/Application Support/DOTformat |
+| Linux    | ~/.local/share/DOTformat |
+
+Files stored there:
+- `dotformat.db` (plaintext log during runtime)
+- `dotformat.db.dotf` (encrypted form after exit if encryption enabled)
+- `auth.db` (authentication + key wrappers)
+
+Portable Mode:
+- If environment variable `DOTFORMAT_PORTABLE=1` is set (or build invoked with `setup.py --portable`), databases are stored in a local `data/` directory alongside the executable.
+- Useful for USB usage; remember this decreases host isolation (anyone with the stick can access the files if not encrypted).
+
+Backups:
+- To back up or migrate, copy the whole directory above (or `data/` in portable mode) while the application is closed.
+
+## Portable Build
+
+When running `python setup.py --portable`, the executable will expect to place/read databases inside a `data/` folder adjacent to the executable. Create this folder manually if you want to pre-populate with existing encrypted or plaintext DBs.
+
 ## Upgrading from 1.x
 
 1. Remove any old conflicting virtual environment and recreate with Python 3.10.

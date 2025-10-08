@@ -31,7 +31,10 @@ def _ensure_dir(p: Path) -> Path:
 def get_base_data_dir() -> Path:
     if 'base' in _CACHE:
         return _CACHE['base']
-    if user_data_dir:
+    # Portable override: store beside executable (current working directory) if env set
+    if os.environ.get('DOTFORMAT_PORTABLE') == '1':
+        base = Path(os.getcwd()) / 'data'
+    elif user_data_dir:
         base = Path(user_data_dir(APP_NAME, APP_AUTHOR))
     else:
         # Fallback: alongside running script
