@@ -7,72 +7,23 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 **Current Version:** 1.2.1
 
 ### Changelog
+Keep a concise overview here; full historical and in‑progress details live in `CHANGELOG.md`.
 
-**Unreleased (Developing branch)**
+Latest (Developing / Unreleased highlights):
+- Local authentication & role-based access (admin vs user)
+- Key wrapping architecture (per-user AES-EAX wrapped master key)
+- Optional encrypted log database with atomic on-close encryption
+- In‑memory logout (no full process restart) and secure session rebuild
+- Log viewer with filter / search / sort + filtered export (CSV/XLSX)
+- Centralized per-user data directory & legacy auto-migration
 
-- Local user authentication (PBKDF2-HMAC-SHA256 password hashing) required before feature access.
+Past releases (summary):
+- 1.2.1: Dependency loading improvements, lazy heavy imports, clearer optional packages, stability fixes.
+- 1.2.0: PDF password UI, unified PDF manager, background remover feature, improved video converter.
+- 1.1.0: Folder restructure (converters→models), ffmpeg auto-setup, multi-language fixes, more video formats.
+- 1.0.0: Initial public release.
 
-- Envelope key architecture: a random master key (K_APP) is generated once and wrapped per user (AES-EAX + PBKDF2) enabling password changes without re‑encrypting the whole DB.
-
-- Optional full log database encryption on close (dotformat.db → dotformat.db.dotf). Automatic migration of older password-direct encrypted files; legacy password fallback then creates a wrapper.
-
-- Post-login “Add User” dialog creates additional accounts and immediately provisions a key wrapper.
-
-- Centralized per-user data directory for persistence (platformdirs): databases now stored under the OS user data path instead of beside the executable, making PyInstaller one-file updates safe.
-
-- Improved decryption + schema initialization ordering (prevents accidental blank DB creation).
-
-- Silent one-time migration of legacy DB/auth DB to new data directory if found in old location.
-
-> Note: Version number remains 1.2.1 until a formal 2.0.0 release is tagged; these features are available on the Developing branch.
-
-**2.0.0**
-*(Planned – content moved to Unreleased while in development)*
-
-**1.2.1**
-
-- Reorganized `requirements.txt` to install lighter/core dependencies first and heavy scientific/ML stack (Pillow, NumPy, numba/llvmlite, onnxruntime, opencv, scikit-image, scipy) at the end to reduce resolver breakage.
-
-- Added lazy import strategy for background removal (now `rembg`, `numpy`, `cv2` only load when the feature is invoked) preventing startup crashes if those packages are absent.
-
-- Clarified optional nature of `rembg` (kept commented so regular users can install faster / fewer issues).
-
-- Improved error messaging for missing heavy dependencies (friendly instructions instead of hard tracebacks).
-
-- General dependency stability fixes for Python 3.10 builds (older compatible pins; avoided NumPy 2.x incompatibilities).
-
-**1.2.0**
-
-- (Finally) Added the **PDF Password** to the user interface in the pdf_manager_action function.
-(How did I forget about this all this time?)
-
-- Merged the PDF files (pdf_to_png.py, pdf_to_docx.py, and pdf_password.py) into a single one called **pdf_manager.py** to keep the code clean.
-
-- Added a background remover script using the **rembg** library. See the [Features](#features) section for more details.
-
-- Added a **main.py** file for easier access to the program's entry point.
-
-- Moved the **setup.py** file from the **src** folder to the main folder for easier access to the setup script.
-
-- Improved the video converter with a real-time progress bar and the ability to cancel conversion during processing.
-
-- Improved compatibility with other systems in general.
-
-**1.1.0**
-
-- The folder name **converters** was changed to **models**.
-
-- Compatibility bug fixes with other system languages (PT-BR).
-
-- Automatic installation of ffmpeg and autonomous addition to the system PATH.
-
-- Code translation to English and added some comments for better general understanding.
-
-- Possibility of converting videos to other formats besides MP4.
-
-**1.0.0**
-
-- Project release.
+See full details: [CHANGELOG.md](./CHANGELOG.md)
 
 ## Features
 
