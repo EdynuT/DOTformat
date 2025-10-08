@@ -17,13 +17,19 @@ class UserService:
         if self.repo.find_by_username(username):
             return False
         pwd_hash = hash_password(password)
-        return self.repo.create(username, pwd_hash)
+        # First user automatically becomes admin
+        role = 'admin' if self.repo.is_first_user() else 'user'
+        return self.repo.create(username, pwd_hash, role=role)
 
     def authenticate(self, username: str, password: str) -> bool:
         rec = self.repo.find_by_username(username)
         if not rec:
             return False
-        _id, _username, pwd_hash, _created = rec
+        # rec = (id, username, password_hash, role, created_at)
+        pwd_hash = rec[2]
         return verify_password(password, pwd_hash)
+
+    def get_role(self, username: str) -> Optional[str]:
+        return self.repo.get_role(username)
 
 __all__ = ["UserService"]

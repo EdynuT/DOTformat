@@ -18,3 +18,7 @@ class ConversionService:
 
     def recent(self, limit: int = 50) -> List[Row]:
         return self.repo.list_last(limit=limit)
+
+    def all(self) -> List[Row]:
+        """Return all log rows (no limit)."""
+        return self.repo.list_all()

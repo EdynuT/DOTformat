@@ -16,7 +16,9 @@ fire==0.4.0
 future==0.18.2
 idna==3.4
 packaging==21.3
-platformdirs==3.10.0   # Used to resolve per-user data directory for persistent databases (app_paths)
+
+# Used to resolve per-user data directory for persistent databases (app_paths)
+platformdirs==3.10.0   
 proglog==0.1.10
 python-dotenv==0.21.0
 requests==2.31.0

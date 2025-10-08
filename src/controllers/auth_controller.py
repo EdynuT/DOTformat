@@ -36,8 +36,8 @@ class AuthController:
         except Exception:
             pass
 
-    def prompt(self, parent: tk.Tk) -> tuple[str, str] | None:
-        """Open modal dialog. Returns (username, raw_password) if authenticated.
+    def prompt(self, parent: tk.Tk) -> tuple[str, str, str] | None:
+        """Open modal dialog. Returns (username, raw_password, role) if authenticated.
 
         UI improvements:
         - Prefill username with last logged-in user on login mode.
@@ -55,7 +55,7 @@ class AuthController:
         last_user = self._get_last_user()
         first_time = not self.service.has_users()
         if first_time:
-            mode_var.set("register")
+            mode_var.set("register")  # Only first run permits registration
 
         frm = ttk.Frame(win, padding=12)
         frm.pack(fill=tk.BOTH, expand=True)
@@ -83,18 +83,20 @@ class AuthController:
         # initial state
         render_confirm()
 
-        lbl_mode = ttk.Label(frm, text=f"{mode_var.get().title()}", font=("Segoe UI", 11, "bold"), foreground="#1a4c7a")
+        lbl_mode = ttk.Label(frm, text=("Register" if first_time else "Login"), font=("Segoe UI", 11, "bold"), foreground="#1a4c7a")
         lbl_mode.grid(row=3, column=0, columnspan=2, pady=(8,4))
 
         def switch_mode():
-            # toggle
+            # After first user exists, no register mode
+            if not first_time:
+                return
+            # Only one possible transition: register -> (unused) login (should not happen before submit)
+            # Keep for completeness but effectively disabled by not exposing button.
             if mode_var.get() == "login":
                 mode_var.set("register")
             else:
                 mode_var.set("login")
-            # Update heading + switch button + confirm field
-            lbl_mode.config(text=mode_var.get().title())
-            btn_switch.config(text=("Register" if mode_var.get()=="login" else "Login"))
+            lbl_mode.config(text=("Register" if mode_var.get()=="register" else "Login"))
             render_confirm()
 
         def submit():
@@ -123,6 +125,7 @@ class AuthController:
                     messagebox.showinfo("Success", "User registered. You can use the app now.", parent=win)
                     self.username = username
                     self._password_plain = password  # store raw temporarily for encryption use
+                    self._role = self.service.get_role(username) or 'user'
                     self._set_last_user(username)
                     win.destroy()
                 else:
@@ -131,6 +134,7 @@ class AuthController:
                 if self.service.authenticate(username, password):
                     self.username = username
                     self._password_plain = password  # store raw temporarily for encryption use
+                    self._role = self.service.get_role(username) or 'user'
                     self._set_last_user(username)
                     win.destroy()
                 else:
@@ -138,14 +142,14 @@ class AuthController:
 
         btn_row = ttk.Frame(frm)
         btn_row.grid(row=4, column=0, columnspan=2, pady=8, sticky="ew")
-        switch_text = "Register" if mode_var.get() == 'login' else "Login"
         ttk.Button(btn_row, text="Submit", command=submit).pack(side=tk.LEFT)
-        btn_switch = ttk.Button(btn_row, text=switch_text, command=switch_mode)
-        btn_switch.pack(side=tk.RIGHT)
+        if first_time:
+            # Only show a disabled-looking hint label or skip toggle entirely; simpler: skip toggle.
+            pass
 
         parent.wait_window(win)
         if self.username:
-            return self.username, getattr(self, '_password_plain', '')
+            return self.username, getattr(self, '_password_plain', ''), getattr(self, '_role', 'user')
         return None
 
 __all__ = ["AuthController"]

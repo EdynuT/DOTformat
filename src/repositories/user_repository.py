@@ -4,12 +4,12 @@ from typing import Optional
 from ..db.auth_connection import get_auth_connection
 
 class UserRepository:
-    def create(self, username: str, password_hash: str) -> bool:
+    def create(self, username: str, password_hash: str, role: str = 'user') -> bool:
         with get_auth_connection() as conn:
             try:
                 conn.execute(
-                    "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-                    (username, password_hash)
+                    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                    (username, password_hash, role)
                 )
                 conn.commit()
                 return True
@@ -18,7 +18,7 @@ class UserRepository:
 
     def find_by_username(self, username: str) -> Optional[tuple]:
         with get_auth_connection() as conn:
-            cur = conn.execute("SELECT id, username, password_hash, created_at FROM users WHERE username = ?", (username,))
+            cur = conn.execute("SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?", (username,))
             return cur.fetchone()
 
     def count_users(self) -> int:
@@ -26,5 +26,15 @@ class UserRepository:
             cur = conn.execute("SELECT COUNT(1) FROM users")
             (cnt,) = cur.fetchone()
             return int(cnt)
+
+    def is_first_user(self) -> bool:
+        return self.count_users() == 0
+
+    def get_role(self, username: str) -> Optional[str]:
+        rec = self.find_by_username(username)
+        if rec:
+            # rec = (id, username, password_hash, role, created_at)
+            return rec[3]
+        return None
 
 __all__ = ["UserRepository"]

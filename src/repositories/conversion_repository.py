@@ -27,3 +27,11 @@ class ConversionRepository:
                 (limit,)
             )
             return list(cur.fetchall())
+
+    def list_all(self) -> List[Row]:
+        """Return all conversion log rows (ordered by id ascending)."""
+        with get_connection() as conn:
+            cur = conn.execute(
+                "SELECT id, feature, input_path, output_path, status, detail, username, created_at FROM conversion_log ORDER BY id ASC"
+            )
+            return list(cur.fetchall())
