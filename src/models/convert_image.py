@@ -3,6 +3,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image
 import os
 import img2pdf
+from src.utils.user_settings import get_setting, set_setting
 
 class ImageConverter:
     """
@@ -54,10 +55,11 @@ class ImageConverter:
         # Prompt the user to select image files
         image_files = filedialog.askopenfilenames(
             title="Select images to convert",
+            initialdir=(get_setting("last_dir_image") or ""),
             filetypes=[("Images", "*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico"), ("All Files", "*.*")]
         )
         if not image_files:
-            messagebox.showinfo("Information", "No images selected.")
+            # User cancelled the file dialog; do nothing silently.
             return
 
         # Create a window to choose the desired output format
@@ -89,10 +91,11 @@ class ImageConverter:
         """
         image_files = filedialog.askopenfilenames(
             title="Select images to convert to PDF",
+            initialdir=(get_setting("last_dir_image") or ""),
             filetypes=[("Images", "*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico"), ("All Files", "*.*")]
         )
         if not image_files:
-            messagebox.showinfo("Information", "No images selected.")
+            # User cancelled the file dialog; do nothing silently.
             return
 
         # Suggest a default PDF name
@@ -101,14 +104,16 @@ class ImageConverter:
         else:
             pdf_name = "merged_images.pdf"
             
+        set_setting("last_dir_image", os.path.dirname(image_files[0]))
         output_pdf_path = filedialog.asksaveasfilename(
             title="Save PDF as",
             defaultextension=".pdf",
             initialfile=pdf_name,
+            initialdir=(get_setting("last_dir_image") or ""),
             filetypes=[("PDF File", "*.pdf")]
         )
         if not output_pdf_path:
-            messagebox.showwarning("Warning", "No save location specified.")
+            # User cancelled the save dialog; do nothing silently.
             return
 
         try:
@@ -123,6 +128,22 @@ class ImageConverter:
         Converts each selected image into the chosen output format.
         If an output file already exists, asks the user whether to overwrite it.
         """
+        # Simple determinate progress window
+        prog = tk.Toplevel(self.root)
+        prog.title("Converting images")
+        prog.geometry("360x110")
+        prog.resizable(False, False)
+        prog.grab_set()
+        ttk.Label(prog, text=f"Converting to {output_format.upper()}...").pack(pady=(10,4))
+        var = tk.DoubleVar(value=0.0)
+        bar = ttk.Progressbar(prog, mode='determinate', maximum=100, variable=var, length=300)
+        bar.pack(pady=8)
+
+        total = len(image_files)
+        done = 0
+        converted = 0
+        errors: list[str] = []
+
         for file in image_files:
             input_extension = os.path.splitext(file)[1][1:].lower()
             if input_extension == output_format:
@@ -139,13 +160,39 @@ class ImageConverter:
 
             try:
                 with Image.open(file) as img:
-                    # Save image; for JPEG, ensure high quality
-                    if output_format in ('jpg', 'jpeg'):
-                        img.save(output_path, format=output_format.upper(), quality=100, subsampling=0)
+                    fmt = output_format.lower()
+                    if fmt in ('jpg', 'jpeg'):
+                        # Ensure no alpha channel: flatten onto white background if needed
+                        if img.mode in ("RGBA", "LA") or (img.mode == "P" and 'transparency' in img.info):
+                            img = img.convert("RGBA")
+                            bg = Image.new("RGB", img.size, (255, 255, 255))
+                            bg.paste(img, mask=img.split()[3])
+                            img = bg
+                        else:
+                            img = img.convert("RGB")
+                        img.save(output_path, format='JPEG', quality=100, subsampling=0, optimize=True)
                     else:
+                        # For formats supporting alpha, keep original mode
                         img.save(output_path, format=output_format.upper())
+                    converted += 1
             except Exception as e:
-                messagebox.showerror("Error", f"Error converting {file}: {e}")
-                continue
+                errors.append(f"{os.path.basename(file)}: {e}")
+            finally:
+                done += 1
+                pct = (done/total) * 100.0
+                try:
+                    var.set(pct); bar.update_idletasks()
+                except Exception:
+                    pass
 
-        messagebox.showinfo("Success", "Image conversion completed successfully!")
+        try:
+            prog.destroy()
+        except Exception:
+            pass
+
+        if errors and converted == 0:
+            messagebox.showerror("Error", "No images were converted.\n" + "\n".join(errors[:5]))
+        elif errors:
+            messagebox.showwarning("Partial Success", f"Converted {converted}/{total} images. Some failed:\n" + "\n".join(errors[:5]))
+        else:
+            messagebox.showinfo("Success", f"Converted {converted}/{total} images successfully!")

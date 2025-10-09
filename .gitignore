@@ -12,7 +12,6 @@ venv/
 # Build / distribution artifacts
 build/
 dist/
-*.spec
 
 # FFmpeg bundle
 ffmpeg/

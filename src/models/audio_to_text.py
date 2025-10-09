@@ -16,6 +16,8 @@ def convert_audio_to_text(audio_file, text_file):
       A tuple (True, success message) if successful, or (False, error message).
     """
     recognizer = sr.Recognizer()
+    if not audio_file or not text_file:
+        return False, "Missing input audio or output text path."
 
     # Configure ffmpeg path, adjusting if running in a bundled environment
     if getattr(sys, 'frozen', False):

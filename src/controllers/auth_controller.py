@@ -6,6 +6,12 @@ from ..db.auth_connection import get_auth_connection
 from ..services.user_service import UserService
 from pathlib import Path
 from ..db.connection import DB_FILE
+import time
+
+# Login lockout policy (edit these values as needed)
+# After LOCKOUT_MAX_ATTEMPTS failed logins, the username is locked out for LOCKOUT_DURATION_SECONDS.
+LOCKOUT_MAX_ATTEMPTS = 5
+LOCKOUT_DURATION_SECONDS = 300  # 5 minutes
 
 
 def _encrypted_db_present_without_plain() -> bool:
@@ -99,6 +105,68 @@ class AuthController:
             lbl_mode.config(text=("Register" if mode_var.get()=="register" else "Login"))
             render_confirm()
 
+        def _get_kv(key: str) -> str | None:
+            try:
+                with get_auth_connection() as conn:
+                    row = conn.execute("SELECT value FROM user_settings WHERE key=?", (key,)).fetchone()
+                    return row[0] if row else None
+            except Exception:
+                return None
+
+        def _set_kv(key: str, value: str) -> None:
+            try:
+                with get_auth_connection() as conn:
+                    conn.execute(
+                        "INSERT INTO user_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (key, value)
+                    )
+                    conn.commit()
+            except Exception:
+                pass
+
+        def _clear_kv(key: str) -> None:
+            try:
+                with get_auth_connection() as conn:
+                    conn.execute("DELETE FROM user_settings WHERE key=?", (key,))
+                    conn.commit()
+            except Exception:
+                pass
+
+        def _check_lockout(u: str) -> tuple[bool, int]:
+            """Return (locked, seconds_remaining)."""
+            until_s = _get_kv(f"lockout_until:{u}")
+            if not until_s:
+                return False, 0
+            try:
+                until = float(until_s)
+            except Exception:
+                return False, 0
+            now = time.time()
+            if now < until:
+                return True, int(max(1, round(until - now)))
+            # Expired; clear
+            _clear_kv(f"lockout_until:{u}")
+            return False, 0
+
+        def _register_fail(u: str) -> None:
+            key = f"login_fail:{u}"
+            try:
+                n_raw = _get_kv(key)
+                n = int(n_raw) if n_raw is not None else 0
+            except Exception:
+                n = 0
+            n += 1
+            if n >= LOCKOUT_MAX_ATTEMPTS:
+                # Lock the account for configured duration
+                _set_kv(f"lockout_until:{u}", str(time.time() + LOCKOUT_DURATION_SECONDS))
+                _clear_kv(key)  # reset counter after lockout starts
+            else:
+                _set_kv(key, str(n))
+
+        def _clear_fail(u: str) -> None:
+            _clear_kv(f"login_fail:{u}")
+            _clear_kv(f"lockout_until:{u}")
+
         def submit():
             username = ent_user.get().strip()
             password = ent_pwd.get()
@@ -118,6 +186,9 @@ class AuthController:
                     )
                     return
                 confirm = ent_confirm.get() if ent_confirm else ""
+                if len(password) < 6:
+                    messagebox.showerror("Error", "Password must be at least 6 characters", parent=win)
+                    return
                 if password != confirm:
                     messagebox.showerror("Error", "Passwords do not match", parent=win)
                     return
@@ -131,14 +202,31 @@ class AuthController:
                 else:
                     messagebox.showerror("Error", "Registration failed (user exists?)", parent=win)
             else:
+                # Check lockout before authenticating
+                locked, remain = _check_lockout(username)
+                if locked:
+                    messagebox.showerror("Locked Out", f"Too many failed attempts. Try again in {remain} seconds.", parent=win)
+                    return
                 if self.service.authenticate(username, password):
                     self.username = username
                     self._password_plain = password  # store raw temporarily for encryption use
                     self._role = self.service.get_role(username) or 'user'
                     self._set_last_user(username)
+                    _clear_fail(username)
                     win.destroy()
                 else:
-                    messagebox.showerror("Error", "Invalid credentials", parent=win)
+                    _register_fail(username)
+                    # Show feedback and remaining attempts if not yet locked
+                    n_raw = _get_kv(f"login_fail:{username}")
+                    try:
+                        n = int(n_raw) if n_raw is not None else 0
+                    except Exception:
+                        n = 0
+                    if n == 0:  # means lockout just triggered
+                        messagebox.showerror("Locked Out", f"Too many failed attempts. Try again in {LOCKOUT_DURATION_SECONDS} seconds.", parent=win)
+                    else:
+                        left = max(0, LOCKOUT_MAX_ATTEMPTS - n)
+                        messagebox.showerror("Error", f"Invalid credentials. Attempts left: {left}", parent=win)
 
         btn_row = ttk.Frame(frm)
         btn_row.grid(row=4, column=0, columnspan=2, pady=8, sticky="ew")

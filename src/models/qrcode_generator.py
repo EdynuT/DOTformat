@@ -11,6 +11,8 @@ def generate_qr_code(text, save_path):
     Returns:
       A tuple (True, success message) if successful, otherwise (False, error message).
     """
+    if not text or not save_path:
+        return False, "Missing text or save path."
     try:
         qr = qrcode.QRCode(
             version=1,

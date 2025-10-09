@@ -14,6 +14,9 @@ class UserService:
     def register(self, username: str, password: str) -> bool:
         if not username or not password:
             return False
+        # Enforce minimum password length
+        if len(password) < 6:
+            return False
         if self.repo.find_by_username(username):
             return False
         pwd_hash = hash_password(password)

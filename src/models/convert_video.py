@@ -1,11 +1,12 @@
 import threading
-import ffmpeg
 import time
 import cv2
 import os
 import re
 import sys
+import subprocess
 from tkinter import filedialog, messagebox, ttk, Toplevel, DoubleVar
+from src.utils.user_settings import get_setting, set_setting
 
 def get_video_duration(video_file):
     """
@@ -28,23 +29,27 @@ def convert_video_choice(root, output_format):
     # Prompt user to select the input video file
     video_file = filedialog.askopenfilename(
         title="Select the video file",
+        initialdir=(get_setting("last_dir_video") or ""),
         filetypes=[("Videos", "*.mp4;*.avi;*.mov;*.mkv;*.flv"), ("All Files", "*.*")]
     )
     if not video_file:
-        messagebox.showwarning("Warning", "No file selected.")
+        # User cancelled the file dialog; do nothing.
         return
 
     # Suggest default output file name based on input file name and chosen format
     base_name = os.path.splitext(os.path.basename(video_file))[0]
     default_output = os.path.join(f"{base_name}_converted.{output_format}")
+    if video_file:
+        set_setting("last_dir_video", os.path.dirname(video_file))
     output_file = filedialog.asksaveasfilename(
         title="Save converted video as",
         defaultextension=f".{output_format}",
         initialfile=default_output,
+        initialdir=(get_setting("last_dir_video_out") or get_setting("last_dir_video") or ""),
         filetypes=[("Video", f"*.{output_format}")]
     )
     if not output_file:
-        messagebox.showwarning("Warning", "No save location specified.")
+        # User cancelled the save dialog; do nothing.
         return
 
     # Get video duration in seconds for progress calculation
@@ -77,6 +82,18 @@ def convert_video_choice(root, output_format):
 
     progress_win.protocol("WM_DELETE_WINDOW", on_close)
 
+    def _ffmpeg_exe() -> str:
+        """Resolve ffmpeg executable path (bundled or system)."""
+        try:
+            if getattr(sys, 'frozen', False):
+                base = sys._MEIPASS  # type: ignore[attr-defined]
+            else:
+                base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            exe = os.path.join(base, 'ffmpeg', 'bin', 'ffmpeg.exe')
+            return exe if os.path.exists(exe) else 'ffmpeg'
+        except Exception:
+            return 'ffmpeg'
+
     def run_conversion():
         try:
             # Build ffmpeg command
@@ -93,9 +110,9 @@ def convert_video_choice(root, output_format):
                 vcodec = 'libx264'
                 acodec = 'aac'
 
-            # Prepare ffmpeg command with progress info
+            # Prepare ffmpeg command with progress info (use bundled ffmpeg if available)
             cmd = [
-                'ffmpeg',
+                _ffmpeg_exe(),
                 '-y',  # Overwrite output
                 '-i', video_file,
                 '-vcodec', vcodec,
@@ -103,16 +120,7 @@ def convert_video_choice(root, output_format):
                 output_file
             ]
 
-            # Start ffmpeg process
-            ffmpeg_process[0] = proc = (
-                ffmpeg
-                .input(video_file)
-                .output(output_file, vcodec=vcodec, acodec=acodec)
-                .global_args('-y')
-                .compile()
-            )
-            # Use subprocess directly to capture output
-            import subprocess
+            # Start ffmpeg process using subprocess to capture output
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -129,8 +137,8 @@ def convert_video_choice(root, output_format):
                 # Parse ffmpeg output for progress
                 match = time_pattern.search(line)
                 if match:
-                    hours, minutes, seconds, ms = map(int, match.groups())
-                    current_time = hours * 3600 + minutes * 60 + seconds + ms / 100.0
+                    h = int(match.group(1)); m = int(match.group(2)); s = int(match.group(3)); ms = float(match.group(4))
+                    current_time = h * 3600 + m * 60 + s + (ms / 100.0)
                     percent = min((current_time / total_duration) * 100, 100)
                     progress_var.set(percent)
                     progress_win.update_idletasks()
@@ -149,3 +157,56 @@ def convert_video_choice(root, output_format):
 
     # Start conversion in a separate thread to keep UI responsive
     threading.Thread(target=run_conversion, daemon=True).start()
+
+def convert_video_file(input_file: str, output_file: str, output_format: str) -> tuple[bool, str]:
+    """Convert a single video file without UI. Returns (success, message).
+
+    Uses ffmpeg via subprocess and blocks until completion.
+    """
+    try:
+        # Choose codecs based on extension
+        fmt = output_format.lower()
+        if fmt == 'mp4':
+            vcodec, acodec = 'libx264', 'aac'
+        elif fmt == 'avi':
+            vcodec, acodec = 'mpeg4', 'mp3'
+        elif fmt == 'mov':
+            vcodec, acodec = 'libx264', 'aac'
+        else:
+            vcodec, acodec = 'libx264', 'aac'
+
+        # Resolve ffmpeg exe
+        def _ffmpeg_exe() -> str:
+            try:
+                if getattr(sys, 'frozen', False):
+                    base = sys._MEIPASS  # type: ignore[attr-defined]
+                else:
+                    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                exe = os.path.join(base, 'ffmpeg', 'bin', 'ffmpeg.exe')
+                return exe if os.path.exists(exe) else 'ffmpeg'
+            except Exception:
+                return 'ffmpeg'
+
+        cmd = [
+            _ffmpeg_exe(), '-y',
+            '-i', input_file,
+            '-vcodec', vcodec,
+            '-acodec', acodec,
+            output_file
+        ]
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            bufsize=1
+        )
+        # Consume output to avoid blocking
+        for _ in process.stderr:
+            pass
+        process.wait()
+        if process.returncode == 0:
+            return True, "Converted successfully."
+        return False, "Conversion failed."
+    except Exception as e:
+        return False, f"Error: {e}"

@@ -18,6 +18,8 @@ from src.controllers.log_controller import LogController
 from src.controllers.auth_controller import AuthController
 from src.utils.db_crypto import decrypt_file, encrypt_file, CryptoError
 from src.utils.app_paths import get_encrypted_db_file
+from src.utils.user_settings import get_setting, set_setting
+from src.utils.backup import backup_databases, try_restore_if_missing_or_corrupt
 from src.utils.envelope_key import load_wrapper_for_user, create_and_store_wrapper, unwrap_k_app
 from src.utils.security import hash_password, verify_password
 from src.services.conversion_service import ConversionService
@@ -28,6 +30,88 @@ from src.repositories.user_repository import UserRepository
 _conversion_service: ConversionService | None = None
 current_user: str | None = None
 current_role: str | None = None
+
+# Progress runner with a 0–100 determinate bar.
+# If auto=True and the worker does not report progress, a gentle auto-increment simulates activity up to ~92%.
+def run_with_progress(title: str, work_fn, *, auto: bool = False):
+    win = tk.Toplevel(root)
+    win.title(title)
+    win.geometry("380x110")
+    win.resizable(False, False)
+    win.grab_set()
+    # Prevent user from closing the window mid-task (avoids returning None)
+    win.protocol("WM_DELETE_WINDOW", lambda: None)
+    lbl = ttk.Label(win, text=title)
+    lbl.pack(pady=(12, 4))
+    var = tk.DoubleVar(value=0.0)
+    bar = ttk.Progressbar(win, mode='determinate', variable=var, maximum=100, length=320)
+    bar.pack(pady=8)
+
+    # Thread-safe reporter
+    def report(value: float):
+        # Clamp and set 0..100
+        v = max(0.0, min(100.0, float(value)))
+        try:
+            win.after(0, lambda: (var.set(v), bar.update_idletasks()))
+        except Exception:
+            pass
+
+    result = {'val': None, 'err': None}
+
+    import threading
+
+    # Gentle auto-increment only when auto=True
+    auto_running = {'on': auto}
+    def _tick():
+        if not auto_running['on']:
+            return
+        try:
+            current = var.get()
+            if current < 92:
+                step = 0.8 if current < 50 else 0.4
+                var.set(min(92, current + step))
+                bar.update_idletasks()
+        except Exception:
+            pass
+        finally:
+            if auto_running['on']:
+                win.after(120, _tick)
+
+    if auto:
+        win.after(250, _tick)
+
+    def _worker():
+        try:
+            result['val'] = work_fn(report)
+        except Exception as e:
+            result['err'] = e
+        finally:
+            try:
+                auto_running['on'] = False
+                # Snap to 100% before closing
+                win.after(0, lambda: (var.set(100), bar.update_idletasks()))
+                win.after(80, lambda: win.destroy())
+            except Exception:
+                pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+    # Block until window closes
+    root.wait_window(win)
+    if result['err']:
+        raise result['err']
+    return result['val']
+
+# Run a known number of steps (each step increments evenly to 100)
+def run_steps(title: str, steps_total: int, work_fn):
+    steps_total = max(1, int(steps_total))
+    def _runner(report):
+        done = {'n': 0}
+        def inc(n: int = 1):
+            done['n'] += n
+            pct = (done['n'] / steps_total) * 100.0
+            report(pct)
+        return work_fn(inc)
+    return run_with_progress(title, _runner, auto=False)
 
 def pdf_manager_action():
     """
@@ -43,16 +127,24 @@ def pdf_manager_action():
 
     def to_docx():
         pdf_win.lift()
-        pdf_file = filedialog.askopenfilename(title="Select the PDF file", filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
+        pdf_file = filedialog.askopenfilename(title="Select the PDF file", initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
         if not pdf_file:
-            return messagebox.showwarning("Warning", "No PDF file selected.", parent=pdf_win)
+            # User cancelled; do nothing.
+            return
         base_name = os.path.splitext(os.path.basename(pdf_file))[0]
         default_docx_name = f"{base_name}.docx"
-        docx_file = filedialog.asksaveasfilename(title="Save DOCX as", defaultextension=".docx", initialfile=default_docx_name, filetypes=[("DOCX File", "*.docx")])
+        if pdf_file:
+            set_setting("last_dir_pdf", os.path.dirname(pdf_file))
+        docx_file = filedialog.asksaveasfilename(title="Save DOCX as", defaultextension=".docx", initialfile=default_docx_name, initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("DOCX File", "*.docx")])
         if not docx_file:
-            return messagebox.showwarning("Warning", "No DOCX directory selected.", parent=pdf_win)
+            # User cancelled; do nothing.
+            return
         try:
-            success, msg = pdf_to_docx(pdf_file, docx_file)
+            success, msg = run_with_progress(
+                "Converting PDF to DOCX",
+                lambda _ : pdf_to_docx(pdf_file, docx_file),
+                auto=True
+            )
             if success:
                 _conversion_service.log_success("pdf_to_docx", pdf_file, docx_file, username=current_user)
                 messagebox.showinfo("Success", msg, parent=pdf_win)
@@ -65,14 +157,20 @@ def pdf_manager_action():
 
     def to_png():
         pdf_win.lift()
-        pdf_file = filedialog.askopenfilename(title="Select the PDF file", filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
+        pdf_file = filedialog.askopenfilename(title="Select the PDF file", initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
         if not pdf_file:
             return
-        output_dir = filedialog.askdirectory(title="Select the directory to save images")
+        if pdf_file:
+            set_setting("last_dir_pdf", os.path.dirname(pdf_file))
+        output_dir = filedialog.askdirectory(title="Select the directory to save images", initialdir=(get_setting("last_dir_pdf") or ""))
         if not output_dir:
             return
         try:
-            success, msg = pdf_to_png(pdf_file, output_dir)
+            success, msg = run_with_progress(
+                "Exporting pages as PNG",
+                lambda _ : pdf_to_png(pdf_file, output_dir),
+                auto=True
+            )
             if success:
                 _conversion_service.log_success("pdf_to_png", pdf_file, output_dir, username=current_user)
                 messagebox.showinfo("Success", msg, parent=pdf_win)
@@ -85,29 +183,45 @@ def pdf_manager_action():
 
     def add_password():
         pdf_win.lift()
-        pdf_file = filedialog.askopenfilename(title="Select the PDF file", filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
+        pdf_file = filedialog.askopenfilename(title="Select the PDF file", initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
         if not pdf_file:
             return
         password = simpledialog.askstring("PDF Password", "Enter a password for the PDF (leave blank for no password):", show='*', parent=pdf_win)
         if password is None:
             return
-        output_pdf = filedialog.asksaveasfilename(title="Save protected PDF as", defaultextension=".pdf", initialfile="protected.pdf", filetypes=[("PDF File", "*.pdf")])
+        if pdf_file:
+            set_setting("last_dir_pdf", os.path.dirname(pdf_file))
+        output_pdf = filedialog.asksaveasfilename(title="Save protected PDF as", defaultextension=".pdf", initialfile="protected.pdf", initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("PDF File", "*.pdf")])
         if not output_pdf:
             return
         if password == "":
             try:
-                with open(pdf_file, "rb") as src, open(output_pdf, "wb") as dst:
-                    dst.write(src.read())
-                _conversion_service.log_success("pdf_copy", pdf_file, output_pdf, username=current_user)
-                messagebox.showinfo("Success", f"PDF saved without password at: {output_pdf}", parent=pdf_win)
+                def _copy(_):
+                    with open(pdf_file, "rb") as src, open(output_pdf, "wb") as dst:
+                        dst.write(src.read())
+                    return True, f"PDF saved without password at: {output_pdf}"
+                success, msg = run_with_progress("Saving PDF", _copy, auto=True)
+                if success:
+                    _conversion_service.log_success("pdf_copy", pdf_file, output_pdf, username=current_user)
+                    messagebox.showinfo("Success", msg, parent=pdf_win)
+                else:
+                    _conversion_service.log_error("pdf_copy", pdf_file, msg, username=current_user)
+                    messagebox.showerror("Error", msg, parent=pdf_win)
             except Exception as e:
                 _conversion_service.log_error("pdf_copy", pdf_file, str(e), username=current_user)
                 messagebox.showerror("Error", f"Failed to save PDF: {e}", parent=pdf_win)
         else:
             try:
-                protect_pdf(pdf_file, password, output_pdf)
-                _conversion_service.log_success("pdf_protect", pdf_file, output_pdf, username=current_user)
-                messagebox.showinfo("Success", f"Protected PDF saved at: {output_pdf}", parent=pdf_win)
+                def _prot(_):
+                    protect_pdf(pdf_file, password, output_pdf)
+                    return True, f"Protected PDF saved at: {output_pdf}"
+                success, msg = run_with_progress("Protecting PDF", _prot, auto=True)
+                if success:
+                    _conversion_service.log_success("pdf_protect", pdf_file, output_pdf, username=current_user)
+                    messagebox.showinfo("Success", msg, parent=pdf_win)
+                else:
+                    _conversion_service.log_error("pdf_protect", pdf_file, msg, username=current_user)
+                    messagebox.showerror("Error", msg, parent=pdf_win)
             except Exception as e:
                 _conversion_service.log_error("pdf_protect", pdf_file, str(e), username=current_user)
                 messagebox.showerror("Error", f"Failed to protect PDF: {e}", parent=pdf_win)
@@ -121,18 +235,24 @@ def pdf_manager_action():
 
 def audio_to_text_action():
     """Transcribe selected audio file to text file."""
-    audio_file = filedialog.askopenfilename(title="Select the audio file", filetypes=[("Audio Files", "*.wav;*.mp3;*.flac;*.ogg;*.aac;*.wma;*.m4a;*.mp4;*.webm;*.avi;*.mov;*.3gp"), ("All Files", "*.*")])
+    audio_file = filedialog.askopenfilename(title="Select the audio file", initialdir=(get_setting("last_dir_audio") or ""), filetypes=[("Audio Files", "*.wav;*.mp3;*.flac;*.ogg;*.aac;*.wma;*.m4a;*.mp4;*.webm;*.avi;*.mov;*.3gp"), ("All Files", "*.*")])
     if not audio_file:
-        messagebox.showwarning("Warning", "No file selected.")
+        # User cancelled; do nothing.
         return
     base_name = os.path.splitext(os.path.basename(audio_file))[0]
     default_text_name = f"{base_name}.txt"
-    text_file = filedialog.asksaveasfilename(title="Save transcription as", defaultextension=".txt", initialfile=default_text_name, filetypes=[("Text File", "*.txt")])
+    if audio_file:
+        set_setting("last_dir_audio", os.path.dirname(audio_file))
+    text_file = filedialog.asksaveasfilename(title="Save transcription as", defaultextension=".txt", initialfile=default_text_name, initialdir=(get_setting("last_dir_audio") or ""), filetypes=[("Text File", "*.txt")])
     if not text_file:
-        messagebox.showwarning("Warning", "No save location specified.")
+        # User cancelled; do nothing.
         return
     try:
-        success, msg = convert_audio_to_text(audio_file, text_file)
+        success, msg = run_with_progress(
+            "Transcribing audio",
+            lambda _ : convert_audio_to_text(audio_file, text_file),
+            auto=True
+        )
         if success:
             _conversion_service.log_success("audio_to_text", audio_file, text_file, username=current_user)
             messagebox.showinfo("Success", msg)
@@ -146,15 +266,28 @@ def audio_to_text_action():
 def qr_code_action():
     """Generate QR code from text or URL."""
     text = simpledialog.askstring("Input Text", "Enter text or URL to generate a QR Code:")
-    if not text:
+    if text is None:
+        # User cancelled; do nothing.
+        return
+    if not text.strip():
         messagebox.showwarning("Warning", "No text or URL provided.")
         return
-    save_path = filedialog.asksaveasfilename(title="Save QR Code as", defaultextension=".png", filetypes=[("PNG Image", "*.png")])
+    save_path = filedialog.asksaveasfilename(title="Save QR Code as", defaultextension=".png", initialdir=(get_setting("last_dir_qr") or ""), filetypes=[["PNG Image", "*.png"]])
     if not save_path:
-        messagebox.showwarning("Warning", "No save location specified.")
+        # User cancelled; do nothing.
         return
     try:
-        success, msg = generate_qr_code(text, save_path)
+        # Remember folder for next time
+        from os.path import dirname
+        set_setting("last_dir_qr", dirname(save_path))
+    except Exception:
+        pass
+    try:
+        success, msg = run_with_progress(
+            "Generating QR Code",
+            lambda _ : generate_qr_code(text, save_path),
+            auto=True
+        )
         if success:
             _conversion_service.log_success("qr_code", None, save_path, username=current_user)
             messagebox.showinfo("Success", msg)
@@ -167,35 +300,47 @@ def qr_code_action():
 
 def batch_video_conversion(output_format):
     """Batch convert videos in a folder."""
-    input_dir = filedialog.askdirectory(title="Select the folder with videos to convert")
+    input_dir = filedialog.askdirectory(title="Select the folder with videos to convert", initialdir=(get_setting("last_dir_video") or ""))
     if not input_dir:
-        messagebox.showwarning("Warning", "No folder selected.")
+        # User cancelled; do nothing.
         return
-    output_dir = filedialog.askdirectory(title="Select the directory to save converted videos")
+    if input_dir:
+        set_setting("last_dir_video", input_dir)
+    output_dir = filedialog.askdirectory(title="Select the directory to save converted videos", initialdir=(get_setting("last_dir_video_out") or get_setting("last_dir_video") or ""))
     if not output_dir:
-        messagebox.showwarning("Warning", "No folder selected.")
+        # User cancelled; do nothing.
         return
     video_extensions = ('.avi', '.mov', '.mkv', '.flv', '.wmv', '.mp4', '.mpeg', '.mpg', '.dav')
+    if output_dir:
+        set_setting("last_dir_video_out", output_dir)
     videos = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.lower().endswith(video_extensions)]
     if not videos:
         messagebox.showwarning("Warning", "No videos found in the folder.")
         return
-    results = []
-    for video_file in videos:
-        base_name = os.path.splitext(os.path.basename(video_file))[0]
-        output_file = os.path.join(output_dir, f"{base_name}_converted.{output_format}")
-        try:
-            success, msg = convert_video_choice(video_file, output_file, output_format)
-            if success:
-                _conversion_service.log_success("video_batch", video_file, output_file, username=current_user)
-                results.append(f"{os.path.basename(video_file)}: Success")
-            else:
-                _conversion_service.log_error("video_batch", video_file, msg, username=current_user)
-                results.append(f"{os.path.basename(video_file)}: Error")
-        except Exception as e:
-            _conversion_service.log_error("video_batch", video_file, str(e), username=current_user)
-            results.append(f"{os.path.basename(video_file)}: Exception")
-    messagebox.showinfo("Conversion Completed", "\n".join(results))
+    # Run batch with step-based progress
+    from src.models.convert_video import convert_video_file
+    def _do_batch(step):
+        results = []
+        for video_file in videos:
+            base_name = os.path.splitext(os.path.basename(video_file))[0]
+            output_file = os.path.join(output_dir, f"{base_name}_converted.{output_format}")
+            try:
+                ok, msg = convert_video_file(video_file, output_file, output_format)
+                if ok:
+                    _conversion_service.log_success("video_batch", video_file, output_file, username=current_user)
+                    results.append(f"{os.path.basename(video_file)}: Success")
+                else:
+                    _conversion_service.log_error("video_batch", video_file, msg, username=current_user)
+                    results.append(f"{os.path.basename(video_file)}: Error")
+            except Exception as e:
+                _conversion_service.log_error("video_batch", video_file, str(e), username=current_user)
+                results.append(f"{os.path.basename(video_file)}: Exception")
+            finally:
+                step(1)
+        return "\n".join(results)
+
+    summary = run_steps("Batch video conversion", len(videos), _do_batch)
+    messagebox.showinfo("Conversion Completed", summary)
 
 def video_conversion_action():
     """
@@ -480,6 +625,8 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
             u = ent_u.get().strip(); p = ent_p.get(); c = ent_c.get()
             if not u or not p:
                 messagebox.showwarning("Warn", "Fill all fields", parent=win); return
+            if len(p) < 6:
+                messagebox.showerror("Error", "Password must be at least 6 characters", parent=win); return
             if p != c:
                 messagebox.showerror("Error", "Passwords do not match", parent=win); return
             svc = UserService()
@@ -496,7 +643,15 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
                     except Exception as e:
                         messagebox.showwarning("Warning", f"User created but key wrapper failed: {e}", parent=win)
                 try:
-                    _conversion_service.log_success("user_create", None, None, username=current_user)
+                    # Detailed log: who created which user
+                    with get_auth_connection() as conn:
+                        actor = conn.execute("SELECT id, username FROM users WHERE username=?", (current_user,)).fetchone()
+                        target = conn.execute("SELECT id, username FROM users WHERE username=?", (u,)).fetchone()
+                    if actor and target:
+                        detail = f"{actor[1]} (ID: {actor[0]}) created user {target[1]} (ID: {target[0]})"
+                    else:
+                        detail = f"User created: {u}"
+                    _conversion_service.log_success("user_create", None, None, username=current_user, detail=detail[:500])
                 except Exception:
                     pass
                 messagebox.showinfo("Success", "User added.", parent=win)
@@ -516,6 +671,10 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
     mainframe.columnconfigure(0, weight=1)
 
     def on_close():
+        try:
+            backup_databases()
+        except Exception:
+            pass
         _atomic_encrypt_plaintext_db()
         root.destroy()
 
@@ -577,6 +736,8 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
             cur_p = cur_e.get(); n1 = new_e.get(); n2 = conf_e.get()
             if not cur_p or not n1:
                 messagebox.showwarning("Warn", "Fill fields", parent=cp); return
+            if len(n1) < 6:
+                messagebox.showerror("Error", "Password must be at least 6 characters", parent=cp); return
             if n1 != n2:
                 messagebox.showerror("Error", "Passwords do not match", parent=cp); return
             with get_auth_connection() as conn:
@@ -596,7 +757,16 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
                     except Exception as e:
                         messagebox.showwarning("Warning", f"Password changed but key wrapper failed: {e}", parent=cp)
                 conn.commit()
-            _log("user_password_change")
+            try:
+                with get_auth_connection() as conn:
+                    actor = conn.execute("SELECT id, username FROM users WHERE username=?", (current_user,)).fetchone()
+                if actor:
+                    detail = f"{actor[1]} (ID: {actor[0]}) changed own password"
+                else:
+                    detail = "Password changed"
+                _conversion_service.log_success("user_password_change", None, None, username=current_user, detail=detail[:500])
+            except Exception:
+                pass
             messagebox.showinfo("Success", "Password updated", parent=cp)
             cp.destroy()
 
@@ -647,9 +817,18 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
             messagebox.showerror("Error", "Password incorrect", parent=parent); return
         new_role = 'admin' if uro=='user' else 'user'
         with get_auth_connection() as conn:
+            actor = conn.execute("SELECT id, username FROM users WHERE username=?", (current_user,)).fetchone()
+            target = conn.execute("SELECT id, username FROM users WHERE id=?", (uid,)).fetchone()
             conn.execute("UPDATE users SET role=? WHERE id=?", (new_role, uid))
             conn.commit()
-        _log("user_role_change")
+        try:
+            if actor and target:
+                detail = f"{actor[1]} (ID: {actor[0]}) changed role of {target[1]} (ID: {target[0]}) to {new_role}"
+            else:
+                detail = f"Role updated to {new_role} for user ID {uid}"
+            _conversion_service.log_success("user_role_change", None, None, username=current_user, detail=detail[:500])
+        except Exception:
+            pass
         messagebox.showinfo("Success", f"Role updated to {new_role}", parent=parent)
         for r in tree.get_children(): tree.delete(r)
         for r in _get_all_users(): tree.insert('', 'end', values=r)
@@ -672,10 +851,19 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
         if not _prompt_admin_password(parent):
             messagebox.showerror("Error", "Password incorrect", parent=parent); return
         with get_auth_connection() as conn:
+            actor = conn.execute("SELECT id, username FROM users WHERE username=?", (current_user,)).fetchone()
+            target = conn.execute("SELECT id, username FROM users WHERE id=?", (uid,)).fetchone()
             conn.execute("DELETE FROM users WHERE id=?", (uid,))
             conn.execute("DELETE FROM key_wrappers WHERE user_id=?", (uid,))
             conn.commit()
-        _log("user_delete")
+        try:
+            if actor and target:
+                detail = f"{actor[1]} (ID: {actor[0]}) deleted user {target[1]} (ID: {target[0]})"
+            else:
+                detail = f"Deleted user ID {uid}"
+            _conversion_service.log_success("user_delete", None, None, username=current_user, detail=detail[:500])
+        except Exception:
+            pass
         messagebox.showinfo("Success", "User deleted", parent=parent)
         for r in tree.get_children(): tree.delete(r)
         for r in _get_all_users(): tree.insert('', 'end', values=r)
@@ -733,6 +921,32 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
     options_btn = ttk.Button(root, text='☰', command=open_options)
     options_btn.place(x=4, y=4)
 
+    # Help icon (bottom-right) showing brief feature descriptions
+    def open_help():
+        help_win = tk.Toplevel(root)
+        help_win.title("Help")
+        help_win.geometry("420x320")
+        help_win.resizable(False, False)
+        txt = tk.Text(help_win, wrap='word', height=16, width=56)
+        txt.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        txt.insert('1.0', (
+            "DOTformat features:\n"
+            "- Convert Images: Change image formats or combine into a PDF.\n\n"
+            "- Remove Image Background: Remove background and optionally refine with manual eraser.\n"
+            "- PDF Manager: Convert PDF to DOCX/PNG, or add password to a PDF.\n\n"
+            "- Audio to Text: Transcribe audio into a .txt file (requires internet for Google).\n\n"
+            "- Generate QR Code: Create a QR code image from text/URL.\n\n"
+            "- Convert Videos: Convert a video to another format with progress bar.\n\n"
+            "Tips:\n"
+            "- File dialogs remember your last used folder per feature.\n\n"
+            "- Admin can manage users and view logs via Options (☰).\n"
+        ))
+        txt.config(state='disabled')
+        ttk.Button(help_win, text="Close", command=help_win.destroy).pack(pady=(0,8))
+
+    help_btn = ttk.Button(root, text='?', width=3, command=open_help)
+    help_btn.place(relx=1.0, rely=1.0, x=-8, y=-8, anchor='se')
+
     # Quick startup log check to ensure conversion_log table exists (early surface of issues)
     try:
         _conversion_service.log_success("_startup_check", None, None, username=current_user)
@@ -745,6 +959,11 @@ def main():
     root = tk.Tk()
     if _conversion_service is None:
         _conversion_service = ConversionService()
+    # Attempt to restore databases if missing/corrupted
+    try:
+        try_restore_if_missing_or_corrupt()
+    except Exception:
+        pass
     if DEV_FRESH_START:
         try:
             if DB_FILE.exists(): DB_FILE.unlink()

@@ -6,6 +6,7 @@ are not installed. Errors are reported with friendly dialogs.
 """
 
 from tkinter import filedialog, messagebox, Toplevel, Button, Scale, Canvas, Label
+from src.utils.user_settings import get_setting, set_setting
 from PIL import Image, ImageFilter, ImageTk
 import os
 
@@ -49,11 +50,16 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
         ("Images", "*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico"),
         ("All Files", "*.*")
     ]
-    input_path = filedialog.askopenfilename(title="Select image", filetypes=filetypes)
+    try:
+        input_path = filedialog.askopenfilename(title="Select image", initialdir=(get_setting("last_dir_image") or ""), filetypes=filetypes)
+    except Exception as e:
+        return False, str(e)
     if not input_path:
-        messagebox.showinfo("Information", "No image selected.")
+        # User cancelled the dialog; do nothing.
         return
 
+    if input_path:
+        set_setting("last_dir_image", os.path.dirname(input_path))
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
     base, _ = os.path.splitext(os.path.basename(input_path))
     default_output = os.path.join(desktop, f"{base}_nobg.png")
@@ -84,12 +90,36 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
         )
         return
 
+    # Show a small indeterminate progress window while removing background
+    from tkinter import Toplevel, ttk
+    prog = Toplevel()
+    prog.title("Removing background...")
+    prog.geometry("300x90")
+    prog.resizable(False, False)
+    prog.grab_set()
+    lbl = ttk.Label(prog, text="Processing, please wait...")
+    lbl.pack(pady=(10, 6))
+    bar = ttk.Progressbar(prog, mode='indeterminate', length=240)
+    bar.pack(pady=6)
+    try:
+        bar.start(12)
+    except Exception:
+        pass
     try:
         input_image = Image.open(input_path)
+        # Perform background removal
         output_image = remove(input_image)
     except Exception as e:  # pragma: no cover (runtime UX path)
-        messagebox.showerror("Error", f"Failed to remove background:\n{e}")
-        return
+        try:
+            bar.stop(); prog.destroy()
+        except Exception:
+            pass
+        return "Error, Failed to remove background", str(e)
+    finally:
+        try:
+            bar.stop(); prog.destroy()
+        except Exception:
+            pass
 
     # --- Post-processing Window ---
     win = Toplevel()
