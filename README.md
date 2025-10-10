@@ -168,6 +168,10 @@ DOTFORMAT/
 └── setup.py                    # Setup/build script (venv + exe)
 ```
 
+## Requirements
+
+- python < 3.11
+
 ## Installation
 
 Follow these steps on Windows (PowerShell) to set up the environment and optionally build the executable.
