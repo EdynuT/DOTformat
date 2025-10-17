@@ -38,7 +38,6 @@ This release is a major update over 1.2.1 with authentication, safer data handli
 	- File dialogs remember the last used folder per feature (PDF, images, audio, QR, video, remove background).
 
 - Features and conversions
-	- PDF Manager consolidated (Convert PDF→DOCX, PDF→PNG, Add password).
 	- Image conversion: handles PNGs with transparency when saving as JPEG (flattens onto white background); adds per‑batch progress dialog and clearer partial success messages.
 	- Background removal: shows an indeterminate progress dialog during processing; post‑processing tools include Clean Mask, Fill Holes, Smooth Edges, and a Manual Eraser with zoom/pan and undo.
 	- Video conversion: switched to calling the bundled `ffmpeg` binary via subprocess; supports single conversion with live progress (parsed from ffmpeg stderr) and batch conversion with step‑based progress.
@@ -64,7 +63,6 @@ This release is a major update over 1.2.1 with authentication, safer data handli
 
 ### Removed
 - Portable mode support (environment flag and setup switch). All data is stored under the OS user data directory.
-- Legacy PDF modules `pdf_passowrd.py`, `pdf_to_docx.py`, and `pdf_to_png.py` (replaced by the unified `pdf_manager.py`).
 
 ### Security
 - Encrypted file format includes a magic header, version, salt, nonce, authentication tag, and ciphertext; integrity is ensured via AEAD (AES‑EAX).
