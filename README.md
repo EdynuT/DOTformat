@@ -33,6 +33,8 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
     - You can press Enter to submit both Login and first‑time Registration dialogs.
     - Smarter initial focus: when the username is prefilled, the cursor starts in the password box.
 
+## Past releases:
+
 ### 2.0.0
 
 - Sign‑in with roles
@@ -59,8 +61,6 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 - Stability and safety
     - Automatic backups on exit and automatic restore on startup if needed.
     - Consistent app‑data location (portable mode removed).
-
-## Past releases:
 
 ### 1.2.1: 
 
