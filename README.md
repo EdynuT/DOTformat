@@ -6,8 +6,6 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 **Current Version:** 2.1.0
 
-**Last Stable:** 1.2.1
-
 ### Changelog
 ### 2.1.0
 
