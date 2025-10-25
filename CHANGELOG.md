@@ -4,6 +4,67 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [2.1.0] - 2025-10-24
+
+### Added
+- PDF → PNG: Quality selector (DPI slider 100–500, default 300, with recommended marker) before exporting images.
+- FFmpeg helper: Optional in-app downloader with a "What is FFmpeg?" explanation dialog; stores a portable copy under %LOCALAPPDATA%/DOTformat/ffmpeg/bin.
+- Audio → Text: Language selector in the GUI (BCP‑47 codes; persisted between runs). Default is pt‑BR.
+ - Progress UX: Determinate/staged progress for multiple features.
+	 - Audio → Text: Determinate bar driven by ~10s chunks.
+	 - Remove Background: Determinate staged bar (Loading → Applying AI model → Finalizing).
+ - Log maintenance: Normalize IDs action in the Log viewer. Renumbers `conversion_log` so the oldest entry is ID=1 and IDs increase chronologically. Includes a determinate progress dialog and preserves all data.
+ - Log maintenance: Restore Old Log action in the Log viewer to revert to the pre‑normalization table snapshot (`conversion_log_old`).
+
+### Fixed
+- PDF → PNG conversion failed on Windows with the message "Unable to get page count. Is poppler installed and in PATH?" when attempting to export images.
+- Audio → Text and Video conversion: FFmpeg not found even when bundled in project; improved detection and process PATH setup.
+ - Model-side logging completeness: remove background, image conversion, and single video conversion now record input/output paths and errors consistently.
+
+### Changed
+- Rewrote `pdf_to_png` implementation to use PyMuPDF (`fitz`) instead of `pdf2image`/Poppler.
+ - Centralized FFmpeg resolution in `src/utils/ffmpeg_finder.py`. New search order: project bundle (DOTformat/ffmpeg/bin) → system PATH → %LOCALAPPDATA%/DOTformat/ffmpeg/bin → PyInstaller bundle. When not available, the app can prompt to download a portable FFmpeg and prepend its bin folder to the process PATH.
+ - Reworked `convert_audio_to_text` to improve robustness: always converts inputs to WAV 16 kHz mono 16‑bit, normalizes loudness, and splits long audio into ~50s chunks before sending to the recognizer. The function now accepts a `language` parameter (default `'pt-BR'`). The GUI passes the selected language.
+ - Video conversion progress is smoother: parsing-based progress is capped to keep headroom for finalization and a gentle advancement prevents the bar from appearing frozen around 80–90%.
+ - Audio language list in the GUI is now displayed alphabetically.
+ - Startup behavior: removed automatic log normalization on app launch. Normalization is now a manual action from the Log viewer.
+ - Database maintenance safety: normalization keeps a snapshot (`conversion_log_old`), and a SQLite busy timeout is set to reduce transient lock stalls.
+ - Authentication UX: Press Enter to submit on Login and Registration, with smarter initial focus (password when username is prefilled).
+
+### Details
+- FFmpeg resolution and download flow:
+	- Previous behavior: Each feature tried bespoke logic (or just 'ffmpeg' on PATH). Users could hit errors like "FFmpeg não encontrado" despite having the binary in the project.
+	- New logic: `ensure_ffmpeg()` consolidates lookup and, if not found, offers to download a portable build to the user's data directory without admin rights. Once placed, the helper prepends that bin directory to the process PATH and returns the absolute paths to `ffmpeg.exe` and `ffprobe.exe`.
+	- A small UI includes a "What is FFmpeg?" button with an explanation so users understand why it's needed.
+
+- Audio → Text pipeline:
+	- Inputs are normalized and resampled to WAV 16 kHz mono 16‑bit to reduce recognizer failures and improve accuracy.
+	- Long recordings are chunked into ~10s segments para progresso suave e para evitar erros "Bad Request"; errors and then concatenated.
+	- The language used by the recognizer can be chosen from the GUI and is remembered between runs.
+	- Supported audio extensions are centralized in `SUPPORTED_EXTENSIONS` in `audio_to_text.py`, and the GUI file dialog consumes the same list to keep both sides in sync.
+
+- Previous behavior:
+	- The function `pdf_to_png(pdf_file, output_dir)` called `pdf2image.convert_from_path`, which relies on external Poppler binaries on Windows. If Poppler was not installed or not present on PATH, calling the feature would raise an exception at save time (the dialog appeared, but the conversion failed with the poppler error).
+
+- New logic:
+	- `pdf_to_png` now opens the PDF with `fitz.open(pdf_file)` and renders each page to a PNG using a `fitz.Matrix` computed from a DPI scale (default 200 DPI). Each page is saved to `page_<n>.png` under the chosen output directory.
+	- API contract preserved: the function still returns `(success: bool, message: str)`, and does not change the GUI call sites.
+	- Output directory is created when missing; images are written without any external dependencies.
+
+- Database maintenance – Normalize IDs:
+	- Problem: After imports and deletes over time, `conversion_log` IDs could be non-sequential or start at a high value, confusing users.
+	- New tool: `normalize_conversion_log_ids(progress)` rebuilds the table in chronological order and assigns fresh sequential IDs starting from 1, preserving all rows and data.
+	- UX: Launched from the Log viewer via a "Normalize IDs" button. Runs in a background thread and shows a determinate progress dialog. On completion, the Log view refreshes automatically.
+ 	- Safety: The original table is preserved as `conversion_log_old` and can be restored via the "Restore Old Log" button in the Log viewer.
+
+- Why this fix:
+	- Removes the external Poppler requirement, which is brittle for end users and for packaged builds. PyMuPDF is already included in `requirements.txt` and works out of the box on Windows.
+
+- Notes / implications:
+	- Default DPI is 200. Higher DPI (e.g., 300) yields larger images and slower rendering; can be made configurable later via the GUI if desired.
+	- Encrypted PDFs will fail to open unless unlocked; future work could prompt for a password and authenticate the document before rendering.
+	- No changes required to packaging. `pymupdf` (PyMuPDF) is already pinned; no spec changes needed.
+
 ## [2.0.0] - 2025-10-09
 
 This release is a major update over 1.2.1 with authentication, safer data handling, progress across operations, and many UX improvements.

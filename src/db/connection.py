@@ -54,6 +54,8 @@ def get_connection():
     conn = sqlite3.connect(DB_FILE)
     try:
         conn.execute("PRAGMA foreign_keys = ON;")
+        # Avoid long hard locks by waiting a bit when the DB is busy (helps during table swap)
+        conn.execute("PRAGMA busy_timeout = 5000;")
         yield conn
     finally:
         conn.close()

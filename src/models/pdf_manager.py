@@ -1,7 +1,7 @@
 import os
 import PyPDF2
 from pdf2docx import Converter
-from pdf2image import convert_from_path
+import fitz  # PyMuPDF
 
 def pdf_to_docx(pdf_file, docx_file):
     """
@@ -47,17 +47,35 @@ def protect_pdf(input_pdf, password, output_pdf):
 
 
 
-def pdf_to_png(pdf_file, output_dir):
+def pdf_to_png(pdf_file, output_dir, dpi: int = 200):
     """
-    Converts each page of a PDF file into an individual PNG image.
+    Converts each page of a PDF file into individual PNG images using PyMuPDF
+    (no Poppler required on Windows).
+
+    Args:
+        pdf_file (str): Path to the input PDF.
+        output_dir (str): Directory where PNG files will be saved.
+        dpi (int): Render resolution. 200 DPI is a good default.
+
+    Returns:
+        tuple[bool, str]: (success, message)
     """
     if not pdf_file or not output_dir:
         return False, "Missing input PDF or output directory."
     try:
-        pages = convert_from_path(pdf_file)
-        for i, page in enumerate(pages):
-            output_path = os.path.join(output_dir, f"page_{i + 1}.png")
-            page.save(output_path, 'PNG')
+        os.makedirs(output_dir, exist_ok=True)
+        # Open PDF; for encrypted PDFs, this will raise unless previously unlocked
+        doc = fitz.open(pdf_file)
+        try:
+            zoom = dpi / 72.0  # 72 DPI is the PDF default
+            mat = fitz.Matrix(zoom, zoom)
+            for i in range(doc.page_count):
+                page = doc.load_page(i)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                output_path = os.path.join(output_dir, f"page_{i + 1}.png")
+                pix.save(output_path)
+        finally:
+            doc.close()
         return True, f"Images successfully saved in '{output_dir}'!"
     except Exception as e:
         return False, str(e)

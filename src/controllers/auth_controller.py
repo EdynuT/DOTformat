@@ -52,7 +52,7 @@ class AuthController:
         """
         win = tk.Toplevel(parent)
         win.title("Authentication")
-        win.geometry("340x235")
+        win.geometry("260x150")
         win.resizable(False, False)
         win.transient(parent)
         win.grab_set()
@@ -75,6 +75,14 @@ class AuthController:
         ttk.Label(frm, text="Password:").grid(row=1, column=0, sticky="w")
         ent_pwd = ttk.Entry(frm, width=28, show="*")
         ent_pwd.grid(row=1, column=1, pady=4)
+        # Focus convenience: if username prefilled, focus password; else focus username
+        try:
+            if ent_user.get().strip():
+                ent_pwd.focus_set()
+            else:
+                ent_user.focus_set()
+        except Exception:
+            pass
 
         lbl_confirm = ttk.Label(frm, text="Confirm:")
         ent_confirm = ttk.Entry(frm, width=28, show="*")
@@ -91,19 +99,6 @@ class AuthController:
 
         lbl_mode = ttk.Label(frm, text=("Register" if first_time else "Login"), font=("Segoe UI", 11, "bold"), foreground="#1a4c7a")
         lbl_mode.grid(row=3, column=0, columnspan=2, pady=(8,4))
-
-        def switch_mode():
-            # After first user exists, no register mode
-            if not first_time:
-                return
-            # Only one possible transition: register -> (unused) login (should not happen before submit)
-            # Keep for completeness but effectively disabled by not exposing button.
-            if mode_var.get() == "login":
-                mode_var.set("register")
-            else:
-                mode_var.set("login")
-            lbl_mode.config(text=("Register" if mode_var.get()=="register" else "Login"))
-            render_confirm()
 
         def _get_kv(key: str) -> str | None:
             try:
@@ -230,7 +225,11 @@ class AuthController:
 
         btn_row = ttk.Frame(frm)
         btn_row.grid(row=4, column=0, columnspan=2, pady=8, sticky="ew")
-        ttk.Button(btn_row, text="Submit", command=submit).pack(side=tk.LEFT)
+        submit_btn = ttk.Button(btn_row, text="Submit", command=submit)
+        submit_btn.pack(side=tk.BOTTOM, fill=tk.X, expand=True)
+        # Allow pressing Enter to submit on both login and register screens
+        win.bind("<Return>", lambda e: submit())
+        win.bind("<KP_Enter>", lambda e: submit())
         if first_time:
             # Only show a disabled-looking hint label or skip toggle entirely; simpler: skip toggle.
             pass

@@ -98,11 +98,11 @@ def install_requirements(venv_path, requirements_file):
     """
     Installs the dependencies defined in the 'requirements.txt' file using the virtual environment's pip.
     """
-    # Determine the pip executable based on the operating system
+    # Determine the python executable based on the operating system
     if sys.platform == "win32":
-        pip_executable = venv_path / "Scripts" / "pip.exe"
+        python_executable = venv_path / "Scripts" / "python.exe"
     else:
-        pip_executable = venv_path / "bin" / "pip"
+        python_executable = venv_path / "bin" / "python"
         
     print("Installing dependencies...")
     with requirements_file.open("r") as req:
@@ -112,23 +112,29 @@ def install_requirements(venv_path, requirements_file):
                 continue
             print(f"Installing: {pkg}")
             try:
-                subprocess.check_call(f"{str(pip_executable)} install {pkg}", shell=True)
+                subprocess.check_call([str(python_executable), "-m", "pip", "install", pkg])
             except subprocess.CalledProcessError as e:
                 print(f"Error installing {pkg}: {e}")
                 print("You may need to install this package manually.")
                 
-def build_exe(project_root):
+def build_exe(project_root, venv_path):
     """
     Calls PyInstaller using the spec file to generate an executable.
     """
     spec_file = project_root / "DOTformat.spec"
     print("Building executable from the spec...")
-    command = f'pyinstaller "{str(spec_file)}"'
+    
+    # Determine the python executable based on the operating system
+    if sys.platform == "win32":
+        python_executable = venv_path / "Scripts" / "python.exe"
+    else:
+        python_executable = venv_path / "bin" / "python"
+    
     if is_portable:
-        # Environment variable read later in runtime (you can modify gui/app_paths to honor this)
+        # Environment variable read later in runtime
         os.environ['DOTFORMAT_PORTABLE'] = '1'
     try:
-        subprocess.check_call(command, shell=True)
+        subprocess.check_call([str(python_executable), "-m", "PyInstaller", str(spec_file)])
     except subprocess.CalledProcessError as e:
         print("Error building executable. Details:", e)
         sys.exit(1)
@@ -147,7 +153,7 @@ if __name__ == "__main__":
     # Create the virtual environment, install dependencies, and build the executable
     create_virtualenv(venv_dir)
     install_requirements(venv_dir, requirements_txt)
-    build_exe(project_root)
+    build_exe(project_root, venv_dir)
 
     # Inform user where runtime DBs will live
     try:

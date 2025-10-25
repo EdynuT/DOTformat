@@ -4,9 +4,35 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 2.0.0 
+**Current Version:** 2.1.0
+
+**Last Stable:** 1.2.1
 
 ### Changelog
+### 2.1.0
+
+- Fixed: PDF to PNG not generating images on Windows (removed Poppler dependency; now renders with PyMuPDF).
+
+- Fixed: FFmpeg detection for Audio to Text and Video conversion (now checks project bundle, PATH, then LocalAppData; optional guided download).
+
+- Added: Audio → Text language selector (BCP‑47, saved between runs) and more robust transcription pipeline (converts to WAV 16 kHz mono 16‑bit, normalizes volume, splits long audio into ~50s chunks).
+    - Default language set to pt‑BR; you can choose others like en‑US, en‑GB, es‑ES, es‑MX, fr‑FR, de‑DE, it‑IT, ja‑JP, ko‑KR, ru‑RU.
+
+- Improved: Progress UX
+    - Audio → Text: determinate bar driven by 10s chunks (progresso mais fluido e previsível).
+    - Video conversion: barra mais suave com avanço durante etapas silenciosas do ffmpeg (evita ficar “presa” em 80–90%).
+    - Remove Background: barra determinística com estágios (“Loading image…”, “Applying AI model…”, “Finalizing…”).
+
+- Added: Database maintenance for logs
+    - “Normalize IDs” button in Conversion History renumbers log IDs so the oldest entry is ID=1 and newer entries follow sequentially. A progress dialog shows the update; no data/order is lost.
+    - New: “Restore Old Log” button to revert to the pre‑normalization table snapshot if you want to undo.
+    - Change: automatic normalization at startup was removed; normalization is manual via the Log screen only.
+    - Stability: SQLite busy timeout applied during maintenance to avoid temporary lock stalls.
+
+- Improved: Authentication UX
+    - You can press Enter to submit both Login and first‑time Registration dialogs.
+    - Smarter initial focus: when the username is prefilled, the cursor starts in the password box.
+
 ### 2.0.0
 
 - Sign‑in with roles
@@ -89,6 +115,9 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 Below are the features currently available:
 
 - **Audio to Text Conversion:** Transform audio files into text using speech recognition.
+    - Now with language selector (default pt‑BR), sorted alphabetically.
+    - Robust preprocessing: áudio é convertido para WAV 16 kHz mono 16‑bit e normalizado; áudios longos são divididos em partes (~10s) para progresso mais suave e menos erros.
+    - Determinate progress bar: avança a cada chunk processado e fecha em 100% ao concluir.
 
 - **Image Conversion:** Convert images to different formats and resolutions.
 
@@ -107,11 +136,13 @@ Below are the features currently available:
 
     - AVI for higher frame rate at the expense of quality.
 
-    - MOV for good resolution and frame rate.
+        - MOV for good resolution and frame rate.
+    - Smoother progress: a barra continua avançando mesmo durante etapas silenciosas (mux/finalização) e encerra em 100% ao concluir.
 
 (This script uses more CPU and RAM than usual. Older systems may experience some slowness when using it, but it will work.)
 
 - **Remove Background:** Removes the background of the image you choose, with advanced post-processing options:
+    - Determinate progress: mostra estágios e avança suavemente durante a inferência.
 
     - **Post-processing tools:** Clean mask, fill small holes, and smooth edges with one click.
 
@@ -125,8 +156,13 @@ Below are the features currently available:
         - Option to save or discard manual edits before returning to the main window.
 
 - **Local Authentication & Audit:** Users must log in (or register first user) before accessing features. All feature executions are logged and associated with the username.
+    - Press Enter to submit Login/Registration; faster flow without clicking the button.
+    - Initial focus goes to the password field when the username is prefilled.
 
 - **Optional Encrypted Log Storage:** Before exiting you may encrypt the SQLite log database with a password. If encrypted, you will be prompted to decrypt on next launch; skipping creates a fresh empty log instead.
+    - Log maintenance: from Conversion History, use “Normalize IDs” to fix legacy logs where IDs are reversed (oldest had the largest ID). This operation only renumbers IDs by creation time and keeps all rows and details intact.
+        - Manual and safe: normalization does NOT run automatically on startup. You decide when to run it.
+        - Reversible: use “Restore Old Log” to revert to the prior table snapshot if you change your mind.
 
 ## Project Structure
 
@@ -143,7 +179,8 @@ DOTFORMAT/
 │   │   └── log_controller.py   # Log viewer (filter/sort/export)
 │   ├── db/                     # Database connections/adapters
 │   │   ├── connection.py       # Main log DB connection
-│   │   └── auth_connection.py  # Auth DB connection
+│   │   ├── auth_connection.py  # Auth DB connection
+│   │   └── maintenance.py      # Log IDs maintenance
 │   ├── repositories/           # Data access layer
 │   │   ├── conversion_repository.py
 │   │   └── user_repository.py

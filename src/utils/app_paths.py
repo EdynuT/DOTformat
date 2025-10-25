@@ -5,7 +5,6 @@ usually a temp folder, so we store persistent data (SQLite DBs, encrypted
 variants) under a per-user application data directory.
 
 On Windows: %LOCALAPPDATA%/DOTformat
-On macOS:   ~/Library/Application Support/DOTformat
 On Linux:   ~/.local/share/DOTformat
 
 Falls back to the current script directory if platformdirs is unavailable.

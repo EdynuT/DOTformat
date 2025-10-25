@@ -61,7 +61,7 @@ mpmath==1.2.1
 
 # --- Heavy/fragile section (optional / order matters) ---
 PyMatting==1.1.14
-onnxruntime==1.13.1
+onnxruntime==1.15.0
 opencv-python-headless==4.6.0.66
 scikit-image==0.19.3
 scipy==1.9.3
@@ -69,10 +69,12 @@ pillow==9.5.0
 numpy==1.23.5
 numba==0.55.2
 llvmlite==0.38.1
-# rembg==2.0.33   # Optional: uncomment to enable background removal if not bundled
+rembg==2.0.33   
+# Optional: uncomment to enable background removal if not bundled
 
 # --- Security (encryption) ---
-pycryptodome==3.20.0   # AES EAX + PBKDF2 for full database file encryption
+pycryptodome==3.20.0   
+# AES EAX + PBKDF2 for full database file encryption
 
 # --- Build tool ---
 pyinstaller==5.13.0

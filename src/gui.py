@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 from src.models.convert_image import ImageConverter
 from src.models.pdf_manager import pdf_to_docx, pdf_to_png, protect_pdf
-from src.models.audio_to_text import convert_audio_to_text
+from src.models.audio_to_text import convert_audio_to_text, SUPPORTED_EXTENSIONS
 from src.models.qrcode_generator import generate_qr_code
 from src.models.convert_video import convert_video_choice
 from src.models.remove_background import remove_background
@@ -39,6 +39,15 @@ def run_with_progress(title: str, work_fn, *, auto: bool = False):
     win.geometry("380x110")
     win.resizable(False, False)
     win.grab_set()
+    # Keep the window on top and associated with root so the user always sees it
+    try:
+        win.transient(root)
+        win.lift()
+        win.attributes("-topmost", True)
+        # Allow the OS to process the raise
+        win.update_idletasks()
+    except Exception:
+        pass
     # Prevent user from closing the window mid-task (avoids returning None)
     win.protocol("WM_DELETE_WINDOW", lambda: None)
     lbl = ttk.Label(win, text=title)
@@ -78,7 +87,8 @@ def run_with_progress(title: str, work_fn, *, auto: bool = False):
                 win.after(120, _tick)
 
     if auto:
-        win.after(250, _tick)
+        # Start ticking shortly after showing, to indicate activity immediately
+        win.after(200, _tick)
 
     def _worker():
         try:
@@ -96,6 +106,88 @@ def run_with_progress(title: str, work_fn, *, auto: bool = False):
 
     threading.Thread(target=_worker, daemon=True).start()
     # Block until window closes
+    root.wait_window(win)
+    if result['err']:
+        raise result['err']
+    return result['val']
+
+# Progress runner (0–100) with an extra live status text line.
+# work_fn receives two callbacks: (report_pct: float -> None, set_status: str -> None)
+def run_with_progress_status(title: str, work_fn, *, auto: bool = False):
+    win = tk.Toplevel(root)
+    win.title(title)
+    win.geometry("420x140")
+    win.resizable(False, False)
+    win.grab_set()
+    try:
+        win.transient(root)
+        win.lift()
+        win.attributes("-topmost", True)
+        win.update_idletasks()
+    except Exception:
+        pass
+
+    lbl = ttk.Label(win, text=title)
+    lbl.pack(pady=(10, 4))
+    var = tk.DoubleVar(value=0.0)
+    bar = ttk.Progressbar(win, mode='determinate', variable=var, maximum=100, length=360)
+    bar.pack(pady=4)
+    status_text = tk.StringVar(value="")
+    status_lbl = ttk.Label(win, textvariable=status_text, foreground="#555")
+    status_lbl.pack(pady=(2, 8))
+
+    # Thread-safe updaters
+    def report(value: float):
+        v = max(0.0, min(100.0, float(value)))
+        try:
+            win.after(0, lambda: (var.set(v), bar.update_idletasks()))
+        except Exception:
+            pass
+
+    def set_status(msg: str):
+        try:
+            win.after(0, lambda: (status_text.set(str(msg)), status_lbl.update_idletasks()))
+        except Exception:
+            pass
+
+    result = {'val': None, 'err': None}
+    import threading
+
+    auto_running = {'on': auto}
+    def _tick():
+        if not auto_running['on']:
+            return
+        try:
+            current = var.get()
+            if current < 92:
+                step = 0.8 if current < 50 else 0.4
+                var.set(min(92, current + step))
+                bar.update_idletasks()
+        except Exception:
+            pass
+        finally:
+            if auto_running['on']:
+                win.after(200, _tick)
+
+    if auto:
+        win.after(200, _tick)
+
+    def _worker():
+        try:
+            result['val'] = work_fn(report, set_status)
+        except Exception as e:
+            result['err'] = e
+        finally:
+            try:
+                auto_running['on'] = False
+                win.after(0, lambda: (var.set(100), bar.update_idletasks()))
+                win.after(80, lambda: win.destroy())
+            except Exception:
+                pass
+
+    # Prevent user from closing mid-task
+    win.protocol("WM_DELETE_WINDOW", lambda: None)
+    threading.Thread(target=_worker, daemon=True).start()
     root.wait_window(win)
     if result['err']:
         raise result['err']
@@ -162,13 +254,109 @@ def pdf_manager_action():
             return
         if pdf_file:
             set_setting("last_dir_pdf", os.path.dirname(pdf_file))
-        output_dir = filedialog.askdirectory(title="Select the directory to save images", initialdir=(get_setting("last_dir_pdf") or ""))
+        output_dir = filedialog.asksaveasfilename(title="Select the directory to save images", initialdir=(get_setting("last_dir_pdf") or ""))
         if not output_dir:
+            return
+        # Ask for image quality (DPI) before conversion
+        def ask_dpi(parent) -> int | None:
+            win = tk.Toplevel(parent)
+            win.title("Select image quality")
+            win.geometry("420x200")
+            win.resizable(False, False)
+            win.grab_set()
+
+            ttk.Label(win, text="Select the image quality").pack(pady=(10, 6))
+
+            frm = ttk.Frame(win)
+            frm.pack(pady=4)
+
+            initial = 0
+            try:
+                saved = int(get_setting("last_pdf_png_dpi") or 0)
+                initial = saved if 100 <= saved <= 500 else 0
+            except Exception:
+                initial = 0
+            if initial == 0:
+                initial = 300  # recommended default
+
+            allowed = [100, 200, 300, 400, 500]
+            var = tk.IntVar(value=initial)
+            state = {"up": False}
+            scale_ref = {"w": None}
+
+            def nearest_tick(x: float) -> int:
+                return min(allowed, key=lambda a: abs(a - x))
+
+            # Text variable for the label so we don't reference the label before it's created
+            lbl_text = tk.StringVar(value=f"{initial} DPI")
+
+            def set_value(v: int):
+                v = nearest_tick(v)
+                var.set(v)
+                lbl_text.set(f"{v} DPI")
+                # Update the slider position without causing recursive callbacks
+                w = scale_ref["w"]
+                if w is not None:
+                    state["up"] = True
+                    try:
+                        w.set(v)
+                    finally:
+                        state["up"] = False
+
+            def on_change(s: str):
+                if state["up"]:
+                    return
+                try:
+                    x = float(s)
+                except Exception:
+                    x = float(var.get())
+                set_value(int(round(x)))
+
+            def dec():
+                idx = allowed.index(var.get())
+                set_value(allowed[(idx - 1) % len(allowed)])
+
+            def inc():
+                idx = allowed.index(var.get())
+                set_value(allowed[(idx + 1) % len(allowed)])
+
+            ttk.Button(frm, text="-", width=3, command=dec).grid(row=0, column=0, padx=(0,6))
+            scale = ttk.Scale(frm, from_=100, to=500, orient='horizontal', length=260,
+                               command=on_change)
+            scale_ref["w"] = scale
+            set_value(initial)
+            scale.grid(row=0, column=1)
+            ttk.Button(frm, text="+", width=3, command=inc).grid(row=0, column=2, padx=(6,0))
+
+            lbl_val = ttk.Label(win, textvariable=lbl_text)
+            lbl_val.pack(pady=(6,2))
+            ttk.Label(win, text="Recommended: 300 DPI", foreground="#008000").pack()
+
+            selected = {"val": None}
+            btns = ttk.Frame(win); btns.pack(pady=10)
+            def ok():
+                v = var.get()
+                selected["val"] = v
+                try:
+                    set_setting("last_pdf_png_dpi", v)
+                except Exception:
+                    pass
+                win.destroy()
+            def cancel():
+                win.destroy()
+            ttk.Button(btns, text="OK", command=ok).pack(side=tk.LEFT, padx=6)
+            ttk.Button(btns, text="Cancel", command=cancel).pack(side=tk.LEFT, padx=6)
+
+            win.wait_window()
+            return selected["val"]
+
+        dpi = ask_dpi(pdf_win)
+        if dpi is None:
             return
         try:
             success, msg = run_with_progress(
                 "Exporting pages as PNG",
-                lambda _ : pdf_to_png(pdf_file, output_dir),
+                lambda _ : pdf_to_png(pdf_file, output_dir, dpi),
                 auto=True
             )
             if success:
@@ -235,7 +423,52 @@ def pdf_manager_action():
 
 def audio_to_text_action():
     """Transcribe selected audio file to text file."""
-    audio_file = filedialog.askopenfilename(title="Select the audio file", initialdir=(get_setting("last_dir_audio") or ""), filetypes=[("Audio Files", "*.wav;*.mp3;*.flac;*.ogg;*.aac;*.wma;*.m4a;*.mp4;*.webm;*.avi;*.mov;*.3gp"), ("All Files", "*.*")])
+    # Ask for language first
+    def ask_language(parent) -> str | None:
+        win = tk.Toplevel(parent)
+        win.title("Select the audio language")
+        win.geometry("340x150")
+        win.resizable(False, False)
+        win.grab_set()
+        ttk.Label(win, text="Select the audio language").pack(pady=(12, 6))
+        frm = ttk.Frame(win); frm.pack(pady=4)
+        # Common languages; codes must be BCP-47
+        langs = [
+            'de-DE','en-GB','en-US','es-ES','es-MX',
+            'fr-FR','it-IT','ja-JP','ko-KR','pt-BR','pt-PT','ru-RU'
+        ]
+        saved = get_setting("stt_lang") or 'pt-BR'
+        var = tk.StringVar(value=saved if saved in langs else 'pt-BR')
+        cb = ttk.Combobox(frm, textvariable=var, values=langs, state='readonly', width=24)
+        cb.grid(row=0, column=0, padx=6)
+        # Buttons
+        btns = ttk.Frame(win); btns.pack(pady=10)
+        sel = {"val": None}
+        def ok():
+            sel["val"] = var.get()
+            try:
+                set_setting("stt_lang", sel["val"])
+            except Exception:
+                pass
+            win.destroy()
+        def cancel():
+            win.destroy()
+        ttk.Button(btns, text="OK", command=ok).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btns, text="Cancel", command=cancel).pack(side=tk.LEFT, padx=6)
+        win.wait_window()
+        return sel["val"]
+
+    lang = ask_language(root)
+    if not lang:
+        return
+
+    # Build a filter string from SUPPORTED_EXTENSIONS to keep GUI and backend in sync
+    patterns = ";".join(f"*{ext}" for ext in SUPPORTED_EXTENSIONS)
+    audio_file = filedialog.askopenfilename(
+        title="Select the audio file",
+        initialdir=(get_setting("last_dir_audio") or ""),
+        filetypes=[("Audio Files", patterns), ("All Files", "*.*")]
+    )
     if not audio_file:
         # User cancelled; do nothing.
         return
@@ -248,10 +481,11 @@ def audio_to_text_action():
         # User cancelled; do nothing.
         return
     try:
+        # Use determinate progress driven by chunked transcription
         success, msg = run_with_progress(
             "Transcribing audio",
-            lambda _ : convert_audio_to_text(audio_file, text_file),
-            auto=True
+            lambda report: convert_audio_to_text(audio_file, text_file, lang, progress=report),
+            auto=False
         )
         if success:
             _conversion_service.log_success("audio_to_text", audio_file, text_file, username=current_user)
@@ -608,8 +842,8 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
     def show_add_user_dialog() -> None:
         win = tk.Toplevel(root)
         win.title("Create User")
-        win.geometry("300x210")
-        win.resizable(False, False)
+        win.geometry("300x300")
+        win.resizable(False, True)
         win.grab_set()
         ttk.Label(win, text="Username:").pack(pady=4)
         ent_u = ttk.Entry(win)
@@ -981,3 +1215,4 @@ def main():
         root.destroy(); return
     build_app_ui(username, role, raw_password, uid)
     root.mainloop()
+    

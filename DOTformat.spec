@@ -54,9 +54,12 @@ if os.path.exists(os.path.join(src_dir, 'images', 'image.png')):
 if os.path.exists(os.path.join(src_dir, 'models')):
     datas.append((os.path.join(src_dir, 'models'), 'models'))
 
-ffmpeg_exe = os.path.join(base_dir, 'ffmpeg', 'bin', 'ffmpeg.exe')
-if os.path.exists(ffmpeg_exe):
-    datas.append((ffmpeg_exe, os.path.join('ffmpeg', 'bin')))
+# Bundle ffmpeg related binaries if present
+ffmpeg_bin_dir = os.path.join(base_dir, 'ffmpeg', 'bin')
+for tool in ['ffmpeg.exe', 'ffprobe.exe', 'ffplay.exe']:
+    tool_path = os.path.join(ffmpeg_bin_dir, tool)
+    if os.path.exists(tool_path):
+        datas.append((tool_path, os.path.join('ffmpeg', 'bin')))
 
 a = Analysis(
     [os.path.join(base_dir, 'main.py')],
@@ -68,7 +71,6 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    optimize=0,
 )
 
 pyz = PYZ(a.pure, cipher=None)

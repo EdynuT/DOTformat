@@ -6,6 +6,7 @@ from datetime import datetime
 import os
 from ..services.conversion_service import ConversionService
 from typing import List, Tuple, Any, Optional
+from ..db.maintenance import normalize_conversion_log_ids, restore_log_from_backup
 
 class LogController:
     def __init__(self) -> None:
@@ -80,6 +81,8 @@ class LogController:
         ttk.Button(btn_frame, text="Refresh", command=lambda: self._reload(tree, search_var, status_var)).pack(side=tk.LEFT)
         ttk.Button(btn_frame, text="Export", command=lambda: self._export_dialog(win)).pack(side=tk.LEFT, padx=(6,0))
         ttk.Button(btn_frame, text="Clear Filters", command=lambda: (search_var.set(""), status_var.set("ALL"), apply_filters())).pack(side=tk.LEFT, padx=(6,0))
+        ttk.Button(btn_frame, text="Normalize IDs", command=lambda: self._normalize_ids(win, tree, search_var, status_var)).pack(side=tk.LEFT, padx=(12,0))
+        ttk.Button(btn_frame, text="Restore Old Log", command=lambda: self._restore_from_backup(win, tree, search_var, status_var)).pack(side=tk.LEFT, padx=(6,0))
         ttk.Button(btn_frame, text="Close", command=win.destroy).pack(side=tk.RIGHT)
 
         # Initial population
@@ -192,3 +195,54 @@ class LogController:
             messagebox.showinfo("Success", f"Exported to: {path}")
         except Exception as e:
             messagebox.showerror("Error", f"Export failed: {e}")
+
+    # Maintenance: normalize IDs
+    def _normalize_ids(self, parent: tk.Tk | tk.Toplevel, tree: ttk.Treeview, search_var: tk.StringVar, status_var: tk.StringVar) -> None:
+        # Simple progress window
+        prog = tk.Toplevel(parent)
+        prog.title("Updating database…")
+        prog.geometry("360x110")
+        prog.resizable(False, False)
+        prog.grab_set()
+        ttk.Label(prog, text="Renumbering log IDs (oldest → 1)…").pack(pady=(10,4))
+        var = tk.DoubleVar(value=0.0)
+        bar = ttk.Progressbar(prog, mode='determinate', maximum=100, variable=var, length=300)
+        bar.pack(pady=8)
+
+        def report(pct: float):
+            try:
+                var.set(pct); bar.update_idletasks()
+            except Exception:
+                pass
+
+        def worker():
+            try:
+                ok, msg, _ = normalize_conversion_log_ids(progress=report)
+                prog.after(0, lambda: (var.set(100), bar.update_idletasks()))
+                if ok:
+                    messagebox.showinfo("Done", msg, parent=prog)
+                    self._reload(tree, search_var, status_var)
+                else:
+                    messagebox.showerror("Error", msg, parent=prog)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed: {e}", parent=prog)
+            finally:
+                try: prog.destroy()
+                except Exception: pass
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+    # Maintenance: restore from backup table left by normalization
+    def _restore_from_backup(self, parent: tk.Tk | tk.Toplevel, tree: ttk.Treeview, search_var: tk.StringVar, status_var: tk.StringVar) -> None:
+        if not messagebox.askyesno("Confirm", "Restore previous log snapshot? This will replace the current log table.", parent=parent):
+            return
+        try:
+            ok, msg = restore_log_from_backup()
+            if ok:
+                messagebox.showinfo("Done", msg, parent=parent)
+                self._reload(tree, search_var, status_var)
+            else:
+                messagebox.showwarning("Info", msg, parent=parent)
+        except Exception as e:
+            messagebox.showerror("Error", f"Restore failed: {e}", parent=parent)

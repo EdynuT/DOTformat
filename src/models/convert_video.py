@@ -7,6 +7,8 @@ import sys
 import subprocess
 from tkinter import filedialog, messagebox, ttk, Toplevel, DoubleVar
 from src.utils.user_settings import get_setting, set_setting
+from src.utils.ffmpeg_finder import ensure_ffmpeg
+from src.services.conversion_service import ConversionService
 
 def get_video_duration(video_file):
     """
@@ -83,16 +85,10 @@ def convert_video_choice(root, output_format):
     progress_win.protocol("WM_DELETE_WINDOW", on_close)
 
     def _ffmpeg_exe() -> str:
-        """Resolve ffmpeg executable path (bundled or system)."""
-        try:
-            if getattr(sys, 'frozen', False):
-                base = sys._MEIPASS  # type: ignore[attr-defined]
-            else:
-                base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-            exe = os.path.join(base, 'ffmpeg', 'bin', 'ffmpeg.exe')
-            return exe if os.path.exists(exe) else 'ffmpeg'
-        except Exception:
-            return 'ffmpeg'
+        ffmpeg, _ = ensure_ffmpeg(allow_download=True)
+        if ffmpeg and os.path.exists(str(ffmpeg)):
+            return str(ffmpeg)
+        return 'ffmpeg'
 
     def run_conversion():
         try:
@@ -133,25 +129,60 @@ def convert_video_choice(root, output_format):
             # Regex to extract time= from ffmpeg output
             time_pattern = re.compile(r'time=(\d+):(\d+):(\d+)\.(\d+)')
 
+            # Gentle nudge thread to avoid perceived freeze near the end
+            stop_nudge = threading.Event()
+            last_update = {'t': time.time()}
+
+            def nudger():
+                while not stop_nudge.is_set():
+                    time.sleep(0.25)
+                    # If no new update for 1.5s, nudge up to 99%
+                    if (time.time() - last_update['t']) > 1.5:
+                        cur = progress_var.get()
+                        if cur < 99.0 and process.poll() is None:
+                            progress_var.set(min(99.0, cur + 0.4))
+                            try:
+                                progress_win.update_idletasks()
+                            except Exception:
+                                pass
+            threading.Thread(target=nudger, daemon=True).start()
+
             for line in process.stderr:
                 # Parse ffmpeg output for progress
                 match = time_pattern.search(line)
                 if match:
                     h = int(match.group(1)); m = int(match.group(2)); s = int(match.group(3)); ms = float(match.group(4))
                     current_time = h * 3600 + m * 60 + s + (ms / 100.0)
-                    percent = min((current_time / total_duration) * 100, 100)
+                    # Cap parse-based progress at 98% to keep room for finalization
+                    percent = min((current_time / max(1e-6, total_duration)) * 100, 98.0)
                     progress_var.set(percent)
+                    last_update['t'] = time.time()
                     progress_win.update_idletasks()
             process.wait()
+
+            # Stop nudger
+            stop_nudge.set()
 
             if process.returncode == 0:
                 progress_var.set(100)
                 progress_win.update_idletasks()
                 messagebox.showinfo("Success", "Video conversion completed successfully.")
+                try:
+                    ConversionService().log_success("video_convert", video_file, output_file)
+                except Exception:
+                    pass
             else:
                 messagebox.showerror("Error", "Conversion failed or was cancelled.")
+                try:
+                    ConversionService().log_error("video_convert", video_file, "Conversion failed or cancelled")
+                except Exception:
+                    pass
         except Exception as e:
             messagebox.showerror("Error", f"Unexpected error: {e}")
+            try:
+                ConversionService().log_error("video_convert", video_file, str(e))
+            except Exception:
+                pass
         finally:
             progress_win.destroy()
 
@@ -177,15 +208,10 @@ def convert_video_file(input_file: str, output_file: str, output_format: str) ->
 
         # Resolve ffmpeg exe
         def _ffmpeg_exe() -> str:
-            try:
-                if getattr(sys, 'frozen', False):
-                    base = sys._MEIPASS  # type: ignore[attr-defined]
-                else:
-                    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-                exe = os.path.join(base, 'ffmpeg', 'bin', 'ffmpeg.exe')
-                return exe if os.path.exists(exe) else 'ffmpeg'
-            except Exception:
-                return 'ffmpeg'
+            ffmpeg, _ = ensure_ffmpeg(allow_download=True)
+            if ffmpeg and os.path.exists(str(ffmpeg)):
+                return str(ffmpeg)
+            return 'ffmpeg'
 
         cmd = [
             _ffmpeg_exe(), '-y',

@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, Toplevel, Button, Scale, Canvas, Lab
 from src.utils.user_settings import get_setting, set_setting
 from PIL import Image, ImageFilter, ImageTk
 import os
+from src.services.conversion_service import ConversionService
 
 
 def clean_mask(image: Image.Image) -> Image.Image:
@@ -53,6 +54,11 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
     try:
         input_path = filedialog.askopenfilename(title="Select image", initialdir=(get_setting("last_dir_image") or ""), filetypes=filetypes)
     except Exception as e:
+        # Log GUI selection error
+        try:
+            ConversionService().log_error("remove_background", None, f"Open dialog failed: {e}")
+        except Exception:
+            pass
         return False, str(e)
     if not input_path:
         # User cancelled the dialog; do nothing.
@@ -72,6 +78,10 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
             "Missing dependency",
             "Missing 'numpy'. Install with:\n  python -m pip install numpy"
         )
+        try:
+            ConversionService().log_error("remove_background", input_path, "Missing dependency: numpy")
+        except Exception:
+            pass
         return
     try:
         import cv2  # type: ignore
@@ -80,6 +90,10 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
             "Missing dependency",
             "Missing 'opencv-python-headless'. Install with:\n  python -m pip install opencv-python-headless"
         )
+        try:
+            ConversionService().log_error("remove_background", input_path, "Missing dependency: opencv-python-headless")
+        except Exception:
+            pass
         return
     try:
         from rembg import remove  # type: ignore
@@ -88,38 +102,92 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
             "Missing dependency",
             "Missing 'rembg'. Optional feature. Install with:\n  python -m pip install rembg"
         )
+        try:
+            ConversionService().log_error("remove_background", input_path, "Missing dependency: rembg")
+        except Exception:
+            pass
         return
 
-    # Show a small indeterminate progress window while removing background
+    # Show a determinate progress window while removing background (worker thread does inference)
     from tkinter import Toplevel, ttk
+    import threading
+    import tkinter as tk
     prog = Toplevel()
     prog.title("Removing background...")
-    prog.geometry("300x90")
+    prog.geometry("320x110")
     prog.resizable(False, False)
     prog.grab_set()
-    lbl = ttk.Label(prog, text="Processing, please wait...")
-    lbl.pack(pady=(10, 6))
-    bar = ttk.Progressbar(prog, mode='indeterminate', length=240)
+
+    msg = tk.StringVar(value="Loading image…")
+    ttk.Label(prog, textvariable=msg).pack(pady=(10, 6))
+
+    pvar = tk.DoubleVar(value=0.0)
+    bar = ttk.Progressbar(prog, mode='determinate', maximum=100, variable=pvar, length=260)
     bar.pack(pady=6)
-    try:
-        bar.start(12)
-    except Exception:
-        pass
-    try:
-        input_image = Image.open(input_path)
-        # Perform background removal
-        output_image = remove(input_image)
-    except Exception as e:  # pragma: no cover (runtime UX path)
+
+    stop_nudge = threading.Event()
+
+    def tick():
+        # Gentle progress while the model runs; capped at 90%
         try:
-            bar.stop(); prog.destroy()
+            if not stop_nudge.is_set():
+                cur = float(pvar.get())
+                if cur < 90.0:
+                    pvar.set(min(90.0, cur + 0.6))
+                prog.after(200, tick)
         except Exception:
             pass
-        return "Error, Failed to remove background", str(e)
-    finally:
+
+    # Start gentle nudger later, after we switch to model phase
+    prog.after(300, tick)
+
+    result = {"img": None, "err": None}
+
+    def _set_msg(text: str):
         try:
-            bar.stop(); prog.destroy()
+            prog.after(0, lambda: msg.set(text))
         except Exception:
             pass
+
+    def _set_progress(val: float):
+        try:
+            prog.after(0, lambda: pvar.set(max(0.0, min(100.0, float(val)))))
+        except Exception:
+            pass
+
+    def _worker():
+        try:
+            _set_msg("Loading image…")
+            _set_progress(5)
+            input_image = Image.open(input_path)
+
+            _set_msg("Applying AI model…")
+            _set_progress(10)
+            img = remove(input_image)
+
+            _set_msg("Finalizing…")
+            _set_progress(95)
+            result["img"] = img
+        except Exception as e:  # pragma: no cover (runtime UX path)
+            result["err"] = e
+        finally:
+            try:
+                stop_nudge.set()
+                prog.after(0, lambda: pvar.set(100.0))
+                prog.after(100, prog.destroy)
+            except Exception:
+                pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+    # Block until the progress window closes
+    prog.wait_window()
+    if result["err"] is not None:
+        try:
+            ConversionService().log_error("remove_background", input_path, f"Failed to remove background: {result['err']}")
+        except Exception:
+            pass
+        return "Error, Failed to remove background", str(result["err"]) 
+    output_image = result["img"]
 
     # --- Post-processing Window ---
     win = Toplevel()
@@ -378,6 +446,10 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
         """
         output_image.save(default_output)
         messagebox.showinfo("Saved", f"Image saved at: {default_output}")
+        try:
+            ConversionService().log_success("remove_background", input_path, default_output)
+        except Exception:
+            pass
         win.destroy()
 
     def save_without_editing():
@@ -385,6 +457,10 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
         Saves the current image without further edits and closes the window.
         """
         output_image.save(default_output)
+        try:
+            ConversionService().log_success("remove_background", input_path, default_output)
+        except Exception:
+            pass
         win.destroy()
 
     # --- Layout: Controls ---

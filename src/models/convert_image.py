@@ -4,6 +4,7 @@ from PIL import Image
 import os
 import img2pdf
 from src.utils.user_settings import get_setting, set_setting
+from src.services.conversion_service import ConversionService
 
 class ImageConverter:
     """
@@ -120,8 +121,19 @@ class ImageConverter:
             with open(output_pdf_path, "wb") as f:
                 f.write(img2pdf.convert(image_files))
             messagebox.showinfo("Success", f"PDF created successfully!\nSaved at: {output_pdf_path}")
+            try:
+                # Log with first image as input exemplar
+                first_input = image_files[0] if image_files else None
+                ConversionService().log_success("images_to_pdf", first_input, output_pdf_path)
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"Error during conversion: {e}")
+            try:
+                first_input = image_files[0] if image_files else None
+                ConversionService().log_error("images_to_pdf", first_input, str(e))
+            except Exception:
+                pass
 
     def process_conversion(self, output_format, image_files):
         """
@@ -143,6 +155,7 @@ class ImageConverter:
         done = 0
         converted = 0
         errors: list[str] = []
+        logger = ConversionService()
 
         for file in image_files:
             input_extension = os.path.splitext(file)[1][1:].lower()
@@ -175,8 +188,16 @@ class ImageConverter:
                         # For formats supporting alpha, keep original mode
                         img.save(output_path, format=output_format.upper())
                     converted += 1
+                    try:
+                        logger.log_success("image_convert", file, output_path)
+                    except Exception:
+                        pass
             except Exception as e:
                 errors.append(f"{os.path.basename(file)}: {e}")
+                try:
+                    logger.log_error("image_convert", file, str(e))
+                except Exception:
+                    pass
             finally:
                 done += 1
                 pct = (done/total) * 100.0
