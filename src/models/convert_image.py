@@ -81,7 +81,15 @@ class ImageConverter:
         def confirm_format():
             output_format = selected_format.get()
             format_window.destroy()
-            self.process_conversion(output_format, image_files)
+            # Ask once for an output directory
+            out_dir = filedialog.askdirectory(
+                title="Select output folder",
+                initialdir=(get_setting("last_dir_image_out") or get_setting("last_dir_image") or "")
+            )
+            if not out_dir:
+                return
+            set_setting("last_dir_image_out", out_dir)
+            self.process_conversion(output_format, image_files, out_dir)
 
         btn_confirm = ttk.Button(format_window, text="Confirm", command=confirm_format)
         btn_confirm.pack(pady=10)
@@ -117,9 +125,30 @@ class ImageConverter:
             # User cancelled the save dialog; do nothing silently.
             return
 
+        # Preprocess images: flatten alpha channels (img2pdf refuses images with alpha)
+        tmp_paths = []
+        def _prepare_no_alpha(path: str) -> str:
+            try:
+                with Image.open(path) as im:
+                    if im.mode in ("RGBA", "LA") or (im.mode == "P" and 'transparency' in im.info):
+                        rgb = Image.new("RGB", im.size, (255, 255, 255))
+                        if im.mode != "RGBA":
+                            im = im.convert("RGBA")
+                        rgb.paste(im, mask=im.split()[3])
+                        import tempfile
+                        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+                        tmp_paths.append(tmp.name); tmp.close()
+                        rgb.save(tmp.name, format='JPEG', quality=95)
+                        return tmp.name
+            except Exception:
+                pass
+            return path
+
+        prepared = [_prepare_no_alpha(p) for p in image_files]
+
         try:
             with open(output_pdf_path, "wb") as f:
-                f.write(img2pdf.convert(image_files))
+                f.write(img2pdf.convert(prepared))
             messagebox.showinfo("Success", f"PDF created successfully!\nSaved at: {output_pdf_path}")
             try:
                 # Log with first image as input exemplar
@@ -134,8 +163,12 @@ class ImageConverter:
                 ConversionService().log_error("images_to_pdf", first_input, str(e))
             except Exception:
                 pass
+        finally:
+            for p in tmp_paths:
+                try: os.remove(p)
+                except Exception: pass
 
-    def process_conversion(self, output_format, image_files):
+    def process_conversion(self, output_format, image_files, out_dir):
         """
         Converts each selected image into the chosen output format.
         If an output file already exists, asks the user whether to overwrite it.
@@ -163,8 +196,7 @@ class ImageConverter:
                 continue  # Skip if already in desired format
 
             base_name = os.path.splitext(os.path.basename(file))[0]
-            input_dir = os.path.dirname(file)
-            output_path = os.path.join(input_dir, f"{base_name}.{output_format}")
+            output_path = os.path.join(out_dir, f"{base_name}.{output_format}")
 
             if os.path.exists(output_path):
                 response = messagebox.askyesno("Overwrite File", f"{output_path} already exists.\nOverwrite?")

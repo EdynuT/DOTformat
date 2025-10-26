@@ -4,9 +4,17 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 2.1.0
+**Current Version:** 2.1.1
 
-### Changelog
+## Changelog
+### 2.1.1
+
+- Added Privacy Policy and Terms documents.
+
+- Fixed various bugs and small improvements.
+
+## Past releases:
+
 ### 2.1.0
 
 - Fixed: PDF to PNG not generating images on Windows (removed Poppler dependency; now renders with PyMuPDF).
@@ -57,8 +65,6 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 - Stability and safety
     - Automatic backups on exit and automatic restore on startup if needed.
     - Consistent app‑data location (portable mode removed).
-
-## Past releases:
 
 ### 1.2.1: 
 
@@ -198,9 +204,11 @@ DOTFORMAT/
 ├── DOTformat.spec              # PyInstaller spec file
 ├── LICENSE                     # Project license
 ├── main.py                     # Program entry point
+├── PRIVACY_POLICY.md           # Privacy Policy
 ├── README.md                   # Project documentation
 ├── requirements.txt            # Python dependencies
-└── setup.py                    # Setup/build script (venv + exe)
+├── setup.py                    # Setup/build script (venv + exe)
+└── TERMS.md                    # Terms & Conditions
 ```
 
 ## Requirements

@@ -53,7 +53,7 @@ class AuthController:
         win = tk.Toplevel(parent)
         win.title("Authentication")
         win.geometry("260x150")
-        win.resizable(False, False)
+        win.resizable(False, True)
         win.transient(parent)
         win.grab_set()
 

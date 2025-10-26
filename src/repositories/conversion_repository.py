@@ -35,3 +35,22 @@ class ConversionRepository:
                 "SELECT id, feature, input_path, output_path, status, detail, username, created_at FROM conversion_log ORDER BY id ASC"
             )
             return list(cur.fetchall())
+
+    def list_by_username(self, username: str) -> List[Row]:
+        """Return all log rows for a specific username."""
+        with get_connection() as conn:
+            cur = conn.execute(
+                "SELECT id, feature, input_path, output_path, status, detail, username, created_at FROM conversion_log WHERE username=? ORDER BY id ASC",
+                (username,)
+            )
+            return list(cur.fetchall())
+
+    def delete_by_username(self, username: str) -> int:
+        """Delete all log rows for a specific username. Returns number of rows deleted."""
+        with get_connection() as conn:
+            cur = conn.execute("DELETE FROM conversion_log WHERE username=?", (username,))
+            conn.commit()
+            try:
+                return cur.rowcount or 0
+            except Exception:
+                return 0

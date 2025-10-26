@@ -117,12 +117,21 @@ def convert_video_choice(root, output_format):
             ]
 
             # Start ffmpeg process using subprocess to capture output
+            # Hide console window on Windows
+            startupinfo = None
+            creationflags = 0
+            if os.name == 'nt':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
-                bufsize=1
+                bufsize=1,
+                startupinfo=startupinfo,
+                creationflags=creationflags,
             )
             ffmpeg_process[0] = process
 
@@ -220,12 +229,21 @@ def convert_video_file(input_file: str, output_file: str, output_format: str) ->
             '-acodec', acodec,
             output_file
         ]
+        # Hide console window on Windows
+        startupinfo = None
+        creationflags = 0
+        if os.name == 'nt':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            bufsize=1
+            bufsize=1,
+            startupinfo=startupinfo,
+            creationflags=creationflags,
         )
         # Consume output to avoid blocking
         for _ in process.stderr:

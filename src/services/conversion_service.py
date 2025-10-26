@@ -32,3 +32,11 @@ class ConversionService:
     def all(self) -> List[Row]:
         """Return all log rows (no limit)."""
         return self.repo.list_all()
+
+    def by_user(self, username: str) -> List[Row]:
+        """Return all log rows for a given user."""
+        return self.repo.list_by_username(username)
+
+    def delete_user_logs(self, username: str) -> int:
+        """Delete all logs for a given user. Returns number of rows deleted."""
+        return self.repo.delete_by_username(username)

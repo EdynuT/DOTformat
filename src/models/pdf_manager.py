@@ -34,6 +34,13 @@ def protect_pdf(input_pdf, password, output_pdf):
         return False, "Missing input or output path."
     try:
         pdf_reader = PyPDF2.PdfReader(input_pdf)
+        # If the input is already encrypted/protected, do not proceed.
+        try:
+            if getattr(pdf_reader, "is_encrypted", False):
+                return False, "This PDF is already protected/encrypted. Remove protection first before setting a new password."
+        except Exception:
+            # If checking encryption state fails, continue; subsequent read may fail with a clearer error.
+            pass
         pdf_writer = PyPDF2.PdfWriter()
         for page in pdf_reader.pages:
             pdf_writer.add_page(page)

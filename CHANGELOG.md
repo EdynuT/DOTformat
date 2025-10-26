@@ -4,6 +4,33 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [2.1.1] - 2025-10-26
+
+### Added
+- Privacy & Terms:
+	- Added `PRIVACY_POLICY.md` and `TERMS.md` to the repository.
+	- In-app “Privacy & Terms” dialog with first-run consent to review and accept before using the app.
+- Image conversion:
+	- Output folder chooser for image format conversion. Converted images from a batch are saved to the selected directory.
+
+### Fixed
+- Audio → Text (Windows 11):
+	- Suppressed flashing console windows by spawning FFmpeg subprocesses with no-window flags during preprocessing and chunked transcription.
+- Image → PDF (Windows):
+	- Fixed failures when source images have transparency (RGBA/LA/P). Images are now flattened to RGB automatically before building the PDF.
+- PDF Password:
+	- When attempting to protect an already encrypted/protected PDF, the app now shows a clear explanatory message and avoids a false success.
+- User Management:
+	- Prevented changing your own role (even if not the last admin) to avoid accidental lockouts.
+- Video conversion (Windows 11):
+	- Suppressed visible console windows launched by FFmpeg to prevent CMD flashes during conversions.
+
+### Changed
+- Options dialog:
+	- Removed the “Export My Data” and “Delete My Data” buttons per feedback. Privacy documents remain accessible via the “Privacy & Terms” entry. Log export continues to be available from the Log viewer.
+- Progress polish:
+	- Minor refinements so progress bars advance smoothly and reliably complete at 100%.
+
 ## [2.1.0] - 2025-10-24
 
 ### Added

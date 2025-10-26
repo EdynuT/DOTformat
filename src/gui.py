@@ -839,6 +839,90 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
             return
         log_controller.open_window(root)
 
+    # ------------------------------
+    # Privacy & Terms helpers
+    # ------------------------------
+    import webbrowser
+
+    def _open_url(url: str):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            try:
+                messagebox.showinfo("Info", f"Open this link in your browser:\n{url}")
+            except Exception:
+                pass
+
+    def open_privacy_dialog():
+        win = tk.Toplevel(root)
+        win.title("Privacy & Terms")
+        win.geometry("520x360")
+        win.resizable(False, False)
+        txt = tk.Text(win, wrap='word', height=14, width=64)
+        txt.pack(fill=tk.BOTH, expand=True, padx=8, pady=(8,4))
+        summary = (
+            "Transparency\n"
+            "- Logs are stored locally and can include file paths, feature name, and status.\n"
+            "- Audio → Text uses Google Web Speech API; audio chunks are sent to Google only while transcribing.\n"
+            "- FFmpeg may be downloaded on demand from a trusted source with your consent.\n\n"
+            "Privacy\n"
+            "- No telemetry is sent by default.\n"
+            "- You can export or delete your logs at any time.\n"
+            "- Optional encryption-at-exit can protect the local database.\n\n"
+            "Docs\n"
+            "- Read the full Privacy Policy and Terms for details."
+        )
+        txt.insert('1.0', summary)
+        txt.config(state='disabled')
+        btns = ttk.Frame(win); btns.pack(pady=6)
+        ttk.Button(btns, text="Open Privacy Policy", command=lambda: _open_url("https://github.com/EdynuT/DOTformat/blob/main/PRIVACY_POLICY.md")).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btns, text="Open Terms", command=lambda: _open_url("https://github.com/EdynuT/DOTformat/blob/main/TERMS.md")).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btns, text="Close", command=win.destroy).pack(side=tk.RIGHT, padx=6)
+
+    def _ensure_privacy_consent_once():
+        # Show once per profile (persisted in auth user_settings)
+        key = "privacy_consent_v1"
+        try:
+            ok = get_setting(key)
+        except Exception:
+            ok = None
+        if ok:
+            return
+        win = tk.Toplevel(root)
+        win.title("Privacy & Terms")
+        win.geometry("560x380")
+        win.resizable(False, False)
+        ttk.Label(win, text="Please review and accept to continue.", font=("Segoe UI", 11, "bold")).pack(pady=(8,4))
+        box = tk.Text(win, wrap='word', height=14, width=66)
+        box.pack(fill=tk.BOTH, expand=True, padx=8, pady=6)
+        box.insert('1.0', (
+            "Key points:\n"
+            "• Logs are local and may include file paths and status.\n"
+            "• Audio → Text sends audio chunks to Google during transcription.\n"
+            "• Optional FFmpeg download may occur with your consent.\n"
+            "• No telemetry by default; you can export or delete your logs.\n"
+        ))
+        box.config(state='disabled')
+        link_row = ttk.Frame(win); link_row.pack(pady=(0,6))
+        ttk.Button(link_row, text="Open Privacy Policy", command=lambda: _open_url("https://github.com/EdynuT/DOTformat/blob/main/PRIVACY_POLICY.md")).pack(side=tk.LEFT, padx=6)
+        ttk.Button(link_row, text="Open Terms", command=lambda: _open_url("https://github.com/EdynuT/DOTformat/blob/main/TERMS.md")).pack(side=tk.LEFT, padx=6)
+        btn_row = ttk.Frame(win); btn_row.pack(pady=6)
+        def accept():
+            try:
+                from datetime import datetime
+                set_setting(key, datetime.now().isoformat())
+            except Exception:
+                pass
+            win.destroy()
+        def decline():
+            try:
+                messagebox.showinfo("Info", "You can close the app if you prefer not to accept.", parent=win)
+            except Exception:
+                pass
+        ttk.Button(btn_row, text="Accept", command=accept).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btn_row, text="Cancel", command=decline).pack(side=tk.LEFT, padx=6)
+
+
     def show_add_user_dialog() -> None:
         win = tk.Toplevel(root)
         win.title("Create User")
@@ -1045,6 +1129,9 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
         first_admin = _first_admin_id()
         if uid == first_admin:
             messagebox.showinfo("Info", "Cannot change the base admin.", parent=parent); return
+        # Block changing own role to avoid accidental lockouts and conflicts
+        if uname == current_user:
+            messagebox.showerror("Error", "You cannot change your own role.", parent=parent); return
         if uname == current_user and _count_admins()==1 and uro=='admin':
             messagebox.showerror("Error", "Cannot demote the last admin.", parent=parent); return
         if not _prompt_admin_password(parent):
@@ -1105,7 +1192,8 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
     def open_options():
         opt = tk.Toplevel(root)
         opt.title("Options")
-        opt.geometry("270x340") if role == 'admin' else opt.geometry("230x210")
+        # Slightly taller to host privacy buttons
+        opt.geometry("290x340") if role == 'admin' else opt.geometry("260x300")
         opt.resizable(False, False)
         # Removed grab_set to avoid modal blocking
 
@@ -1140,6 +1228,10 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
             opt.destroy()
             perform_logout()
 
+        def act_privacy():
+            open_privacy_dialog()
+
+
         # Admin-only buttons
         if role == 'admin':
             ttk.Button(frm, text="Create User", command=lambda: (opt.destroy(), act_create_user())).pack(fill='x', pady=4)
@@ -1147,6 +1239,7 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
             ttk.Button(frm, text="Log", command=lambda: (opt.destroy(), act_log())).pack(fill='x', pady=4)
             ttk.Separator(frm).pack(fill='x', pady=6)
         # Common buttons
+        ttk.Button(frm, text="Privacy & Terms", command=lambda: (opt.destroy(), act_privacy())).pack(fill='x', pady=4)
         ttk.Button(frm, text="Change Password", command=lambda: (opt.destroy(), act_change_password())).pack(fill='x', pady=4)
         ttk.Button(frm, text="Log Out", command=lambda: (opt.destroy(), act_logout())).pack(fill='x', pady=8)
         ttk.Button(frm, text="Close", command=opt.destroy).pack(fill='x', pady=4)
@@ -1186,6 +1279,11 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
         _conversion_service.log_success("_startup_check", None, None, username=current_user)
     except Exception as e:
         messagebox.showerror("Error", f"Failed to validate conversion_log table: {e}\nCheck if the file is corrupted.")
+    # Ensure first-run consent
+    try:
+        _ensure_privacy_consent_once()
+    except Exception:
+        pass
 
 def main():
     """Main GUI entry point (initial launch)."""

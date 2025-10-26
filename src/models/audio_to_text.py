@@ -4,6 +4,42 @@ from typing import List
 import speech_recognition as sr
 from pydub import AudioSegment
 from src.utils.ffmpeg_finder import ensure_ffmpeg
+import subprocess
+import platform
+
+# On Windows, suppress flashing console windows spawned by pydub/ffmpeg by
+# monkeypatching pydub.utils.Popen to inject no-window startup flags.
+if os.name == 'nt':
+    try:
+        import pydub.utils as _pdutils  # type: ignore
+        _orig_popen = getattr(_pdutils, 'Popen', None)
+
+        if _orig_popen is not None:
+            def _quiet_popen(*args, **kwargs):  # type: ignore
+                try:
+                    si = kwargs.get('startupinfo')
+                    if si is None:
+                        si = subprocess.STARTUPINFO()
+                    try:
+                        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        si.wShowWindow = 0
+                    except Exception:
+                        pass
+                    kwargs['startupinfo'] = si
+                    cf = kwargs.get('creationflags', 0)
+                    try:
+                        cf |= subprocess.CREATE_NO_WINDOW
+                    except Exception:
+                        pass
+                    kwargs['creationflags'] = cf
+                except Exception:
+                    pass
+                return _orig_popen(*args, **kwargs)
+
+            _pdutils.Popen = _quiet_popen  # type: ignore
+    except Exception:
+        # If monkeypatch fails, proceed without blocking – worst case, a console flickers.
+        pass
 
 # Public list of supported input extensions so GUI filters stay in sync
 SUPPORTED_EXTENSIONS: list[str] = [
