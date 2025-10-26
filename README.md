@@ -4,16 +4,20 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 2.1.1
+**Current Version:** 2.1.2
 
 ## Changelog
+### 2.1.2
+
+- Fixed a crash that could occur on Windows 11 packaged builds with the error "'NoneType' object has no attribute 'write'". In no‑console builds, some native libraries try to write to stdout/stderr, which can be `None`. We now silence those streams internally so the feature runs safely.
+
+## Past releases:
+
 ### 2.1.1
 
 - Added Privacy Policy and Terms documents.
 
 - Fixed various bugs and small improvements.
-
-## Past releases:
 
 ### 2.1.0
 
@@ -277,8 +281,11 @@ MIT License
 
 ## Message
 
-It is highly recommended to use DOTFORMAT version 1.2.0 or 1.2.1 if you want to have access to the background remover and PDF password maker.
+Background Remover in 2.x works best when running from source with the extra AI libraries installed:
 
-If you want more security and see what's new, use DOTFORMAT version >= 2.0.0
+- Install: `pip install rembg numpy opencv-python-headless`
+- The portable EXE intentionally does not include these heavy packages; if they’re missing, the app will show a quick message explaining how to enable the feature.
 
-I will rarely make small bug fixes, but it may happen at some point. 
+For the most recent fixes and security updates, use DOTFORMAT >= 2.0.0. 
+
+I occasionally ship small bug fixes between feature releases.

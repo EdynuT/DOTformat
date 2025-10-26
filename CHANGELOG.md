@@ -4,6 +4,19 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [2.1.2] - 2025-10-26
+### Fixed
+- Background Remover (Windows 11, packaged/no-console builds):
+	- Resolved intermittent crash with the message "'NoneType' object has no attribute 'write'" by safely redirecting `sys.stdout`/`sys.stderr` to `os.devnull` when they are `None` in frozen apps. Some native libraries attempt to write to these streams during initialization and previously caused a hard failure.
+
+### Added
+- Dependency preflight for Background Remover:
+	- Before opening the progress dialog, the app now checks for required AI libraries (`rembg`, `numpy`, `opencv-python-headless`). If any are missing, it shows a friendly message explaining that the portable build doesn't bundle heavy ML dependencies and how to enable the feature when running from source.
+	- Missing-dependency details are recorded in the conversion log for easier QA.
+
+### Changed
+- UX: When dependencies are missing, the feature no longer displays a progress window that sits around ~90% (“Loading AI libraries…”) and then errors. Instead, it exits early with a clear explanation and no progress dialog.
+
 ## [2.1.1] - 2025-10-26
 
 ### Added

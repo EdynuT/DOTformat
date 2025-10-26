@@ -8,6 +8,7 @@ are not installed. Errors are reported with friendly dialogs.
 from tkinter import filedialog, messagebox, Toplevel, Button, Scale, Canvas, Label
 from src.utils.user_settings import get_setting, set_setting
 from PIL import Image, ImageFilter, ImageTk
+import warnings
 import os
 from src.services.conversion_service import ConversionService
 
@@ -70,43 +71,49 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
     base, _ = os.path.splitext(os.path.basename(input_path))
     default_output = os.path.join(desktop, f"{base}_nobg.png")
 
-    # Lazy heavy imports
+    # Quick preflight: check for heavy dependencies before opening any progress UI
+    # This avoids a long "Loading AI libraries…" phase on systems/executables where
+    # these libraries are not bundled (e.g., PyInstaller no-console builds).
     try:
-        import numpy as np  # type: ignore
+        import importlib.util as _importlib_util  # type: ignore
     except Exception:
-        messagebox.showerror(
-            "Missing dependency",
-            "Missing 'numpy'. Install with:\n  python -m pip install numpy"
-        )
-        try:
-            ConversionService().log_error("remove_background", input_path, "Missing dependency: numpy")
-        except Exception:
-            pass
-        return
+        _importlib_util = None  # Fallback: let runtime import errors occur in worker
+
+    if _importlib_util is not None:
+        missing = []
+        for mod_name, pip_name in (("rembg", "rembg"), ("numpy", "numpy"), ("cv2", "opencv-python-headless")):
+            try:
+                spec = _importlib_util.find_spec(mod_name)
+            except Exception:
+                spec = None
+            if spec is None:
+                missing.append(pip_name)
+        if missing:
+            # User-friendly message explaining why background removal isn't available here.
+            try:
+                messagebox.showerror(
+                    "Background removal unavailable",
+                    (
+                        "This feature needs extra AI libraries that aren't bundled in the portable build.\n\n"
+                        "Required packages:\n  - " + "\n  - ".join(missing) + "\n\n"
+                        "To use background removal, run DOTformat from source and install them:\n"
+                        "python -m pip install " + " ".join(missing)
+                    )
+                )
+            except Exception:
+                pass
+            try:
+                ConversionService().log_error("remove_background", input_path, f"Missing dependencies: {', '.join(missing)}")
+            except Exception:
+                pass
+            return "Error, Missing dependencies", f"Missing dependencies: {', '.join(missing)}"
+
+    # Configure Pillow safety for large images (avoid warnings/stops before progress UI)
     try:
-        import cv2  # type: ignore
+        Image.MAX_IMAGE_PIXELS = None
+        warnings.simplefilter('ignore', Image.DecompressionBombWarning)
     except Exception:
-        messagebox.showerror(
-            "Missing dependency",
-            "Missing 'opencv-python-headless'. Install with:\n  python -m pip install opencv-python-headless"
-        )
-        try:
-            ConversionService().log_error("remove_background", input_path, "Missing dependency: opencv-python-headless")
-        except Exception:
-            pass
-        return
-    try:
-        from rembg import remove  # type: ignore
-    except Exception:
-        messagebox.showerror(
-            "Missing dependency",
-            "Missing 'rembg'. Optional feature. Install with:\n  python -m pip install rembg"
-        )
-        try:
-            ConversionService().log_error("remove_background", input_path, "Missing dependency: rembg")
-        except Exception:
-            pass
-        return
+        pass
 
     # Show a determinate progress window while removing background (worker thread does inference)
     from tkinter import Toplevel, ttk
@@ -157,13 +164,69 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
 
     def _worker():
         try:
-            _set_msg("Loading image…")
+            # In no-console (PyInstaller) builds on Windows, sys.stdout/stderr can be None.
+            # Some native libs write to them and crash with "NoneType has no attribute 'write'".
+            # Redirect to os.devnull to avoid crashes while keeping UI responsive.
+            try:
+                import sys as _sys, os as _os, io as _io  # type: ignore
+                if getattr(_sys, "stdout", None) is None:
+                    _sys.stdout = open(_os.devnull, "w", encoding="utf-8", errors="ignore")  # type: ignore
+                if getattr(_sys, "stderr", None) is None:
+                    _sys.stderr = open(_os.devnull, "w", encoding="utf-8", errors="ignore")  # type: ignore
+            except Exception:
+                pass
+
+            _set_msg("Loading AI libraries…")
             _set_progress(5)
-            input_image = Image.open(input_path)
+            try:
+                from rembg import remove  # type: ignore
+            except Exception:
+                raise RuntimeError("Missing 'rembg'. Install with: python -m pip install rembg")
+            try:
+                import numpy as np  # type: ignore
+            except Exception:
+                raise RuntimeError("Missing 'numpy'. Install with: python -m pip install numpy")
+            try:
+                import cv2  # type: ignore
+            except Exception:
+                raise RuntimeError("Missing 'opencv-python-headless'. Install with: python -m pip install opencv-python-headless")
+
+            _set_msg("Loading image…")
+            _set_progress(10)
+            input_image = Image.open(input_path).convert("RGBA")
 
             _set_msg("Applying AI model…")
-            _set_progress(10)
-            img = remove(input_image)
+            _set_progress(35)
+            out = remove(input_image)
+
+            # rembg.remove may return bytes (PNG), a PIL Image, or a numpy array.
+            # Normalize to a PIL RGBA Image to avoid downstream crashes.
+            img = None
+            try:
+                from io import BytesIO
+                import numpy as _np  # type: ignore
+            except Exception:
+                _np = None
+            if isinstance(out, bytes):
+                try:
+                    img = Image.open(BytesIO(out)).convert("RGBA")
+                except Exception as e:
+                    raise RuntimeError(f"Failed to decode rembg bytes: {e}")
+            elif hasattr(out, 'mode') and hasattr(out, 'size'):
+                # Likely a PIL Image
+                try:
+                    img = out.convert("RGBA")
+                except Exception:
+                    img = out
+            else:
+                # Try numpy array path
+                try:
+                    if _np is not None:
+                        img = Image.fromarray(out).convert("RGBA")
+                except Exception as e:
+                    raise RuntimeError(f"Unsupported rembg output type: {type(out)} ({e})")
+            if img is None:
+                raise RuntimeError(f"Unexpected rembg output type: {type(out)}")
 
             _set_msg("Finalizing…")
             _set_progress(95)
@@ -182,6 +245,10 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
     # Block until the progress window closes
     prog.wait_window()
     if result["err"] is not None:
+        try:
+            messagebox.showerror("Error", f"Failed to remove background: {result['err']}")
+        except Exception:
+            pass
         try:
             ConversionService().log_error("remove_background", input_path, f"Failed to remove background: {result['err']}")
         except Exception:
@@ -307,6 +374,12 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
             Erases (makes transparent) a circular area under the cursor.
             """
             nonlocal edited_image
+            # Ensure heavy deps available when using manual eraser
+            try:
+                import numpy as np  # type: ignore
+                import cv2  # type: ignore
+            except Exception:
+                return
             img_x, img_y = canvas_to_image_coords_manual(event.x, event.y)
             img_np = np.array(edited_image)
             if img_np.shape[2] == 4:

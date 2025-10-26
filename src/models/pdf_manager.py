@@ -22,6 +22,7 @@ def pdf_to_docx(pdf_file, docx_file):
             pass
         return False, str(e)
 
+
 def protect_pdf(input_pdf, password, output_pdf):
     """
     Protects a PDF file by adding a password provided by the user.
@@ -33,25 +34,39 @@ def protect_pdf(input_pdf, password, output_pdf):
     if not input_pdf or not output_pdf:
         return False, "Missing input or output path."
     try:
-        pdf_reader = PyPDF2.PdfReader(input_pdf)
-        # If the input is already encrypted/protected, do not proceed.
+        # Early reject: if the PDF is already password-protected, do not proceed here.
         try:
-            if getattr(pdf_reader, "is_encrypted", False):
-                return False, "This PDF is already protected/encrypted. Remove protection first before setting a new password."
+            doc = fitz.open(input_pdf)
+            needs_pass = getattr(doc, 'needs_pass', False)
+            try:
+                doc.close()
+            except Exception:
+                pass
+            if needs_pass:
+                return False, "This PDF is already password-protected. Unlock/remove the password first, then set a new one."
         except Exception:
-            # If checking encryption state fails, continue; subsequent read may fail with a clearer error.
+            # If PyMuPDF fails to open (likely due to encryption), reject early.
+            return False, "This PDF appears to be encrypted/password-protected. Unlock it first before adding a new password."
+
+        # Secondary check via PyPDF2
+        reader = PyPDF2.PdfReader(input_pdf)
+        try:
+            if getattr(reader, "is_encrypted", False):
+                return False, "This PDF is already protected/encrypted. Unlock it first before adding a new password."
+        except Exception:
             pass
-        pdf_writer = PyPDF2.PdfWriter()
-        for page in pdf_reader.pages:
-            pdf_writer.add_page(page)
+
+        # Build the protected PDF
+        writer = PyPDF2.PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
         if password:
-            pdf_writer.encrypt(password)
+            writer.encrypt(password)
         with open(output_pdf, "wb") as pdf_out:
-            pdf_writer.write(pdf_out)
+            writer.write(pdf_out)
         return True, f"Protected PDF saved at '{output_pdf}'!"
     except Exception as e:
         return False, str(e)
-
 
 
 def pdf_to_png(pdf_file, output_dir, dpi: int = 200):
@@ -62,7 +77,7 @@ def pdf_to_png(pdf_file, output_dir, dpi: int = 200):
     Args:
         pdf_file (str): Path to the input PDF.
         output_dir (str): Directory where PNG files will be saved.
-        dpi (int): Render resolution. 200 DPI is a good default.
+        dpi (int): Render resolution. 300 DPI is a good default.
 
     Returns:
         tuple[bool, str]: (success, message)

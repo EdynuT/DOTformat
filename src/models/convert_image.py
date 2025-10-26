@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image
+import warnings
 import os
 import img2pdf
 from src.utils.user_settings import get_setting, set_setting
@@ -15,6 +16,13 @@ class ImageConverter:
         Initializes the ImageConverter with the given Tkinter root.
         """
         self.root = root
+
+    # Allow very large images by disabling Pillow's decompression bomb limit and warning.
+    try:
+        Image.MAX_IMAGE_PIXELS = None  # Remove safety cap (use with caution)
+        warnings.simplefilter('ignore', Image.DecompressionBombWarning)
+    except Exception:
+        pass
 
     def convert_image(self):
         """
@@ -206,6 +214,13 @@ class ImageConverter:
             try:
                 with Image.open(file) as img:
                     fmt = output_format.lower()
+                    # Adjust save strategy for very large images to reduce memory spikes
+                    try:
+                        w, h = img.size
+                        px = w * h
+                        is_huge = px >= 100_000_000  # ~100 MP threshold
+                    except Exception:
+                        is_huge = False
                     if fmt in ('jpg', 'jpeg'):
                         # Ensure no alpha channel: flatten onto white background if needed
                         if img.mode in ("RGBA", "LA") or (img.mode == "P" and 'transparency' in img.info):
@@ -215,10 +230,18 @@ class ImageConverter:
                             img = bg
                         else:
                             img = img.convert("RGB")
-                        img.save(output_path, format='JPEG', quality=100, subsampling=0, optimize=True)
+                        # For huge images, avoid optimize/subsampling=0 to curb RAM usage
+                        if is_huge:
+                            img.save(output_path, format='JPEG', quality=90)
+                        else:
+                            img.save(output_path, format='JPEG', quality=100, subsampling=0, optimize=True)
                     else:
                         # For formats supporting alpha, keep original mode
-                        img.save(output_path, format=output_format.upper())
+                        if fmt == 'png' and is_huge:
+                            # Avoid expensive optimizations on huge PNGs
+                            img.save(output_path, format='PNG', compress_level=6, optimize=False)
+                        else:
+                            img.save(output_path, format=output_format.upper())
                     converted += 1
                     try:
                         logger.log_success("image_convert", file, output_path)

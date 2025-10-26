@@ -16,7 +16,7 @@ from src.db.auth_connection import init_auth_schema, get_auth_connection
 from src.db.connection import init_schema, DB_FILE
 from src.controllers.log_controller import LogController
 from src.controllers.auth_controller import AuthController
-from src.utils.db_crypto import decrypt_file, encrypt_file, CryptoError
+from src.utils.db_crypto import decrypt_file, encrypt_file
 from src.utils.app_paths import get_encrypted_db_file
 from src.utils.user_settings import get_setting, set_setting
 from src.utils.backup import backup_databases, try_restore_if_missing_or_corrupt
@@ -26,10 +26,12 @@ from src.services.conversion_service import ConversionService
 from src.services.user_service import UserService
 from src.repositories.user_repository import UserRepository
 
+
 # Single global service instance for logging
 _conversion_service: ConversionService | None = None
 current_user: str | None = None
 current_role: str | None = None
+
 
 # Progress runner with a 0–100 determinate bar.
 # If auto=True and the worker does not report progress, a gentle auto-increment simulates activity up to ~92%.
@@ -110,6 +112,7 @@ def run_with_progress(title: str, work_fn, *, auto: bool = False):
     if result['err']:
         raise result['err']
     return result['val']
+
 
 # Progress runner (0–100) with an extra live status text line.
 # work_fn receives two callbacks: (report_pct: float -> None, set_status: str -> None)
@@ -193,6 +196,7 @@ def run_with_progress_status(title: str, work_fn, *, auto: bool = False):
         raise result['err']
     return result['val']
 
+
 # Run a known number of steps (each step increments evenly to 100)
 def run_steps(title: str, steps_total: int, work_fn):
     steps_total = max(1, int(steps_total))
@@ -204,6 +208,7 @@ def run_steps(title: str, steps_total: int, work_fn):
             report(pct)
         return work_fn(inc)
     return run_with_progress(title, _runner, auto=False)
+
 
 def pdf_manager_action():
     """
@@ -246,6 +251,7 @@ def pdf_manager_action():
         except Exception as e:
             _conversion_service.log_error("pdf_to_docx", pdf_file, str(e), username=current_user)
             messagebox.showerror("Error", f"Unexpected error: {e}", parent=pdf_win)
+
 
     def to_png():
         pdf_win.lift()
@@ -374,6 +380,36 @@ def pdf_manager_action():
         pdf_file = filedialog.askopenfilename(title="Select the PDF file", initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("PDF File", "*.pdf"), ("All Files", "*.*")])
         if not pdf_file:
             return
+        # Early check: if PDF is already protected, block and return to main UI
+        try:
+            import fitz  # type: ignore
+            try:
+                d = fitz.open(pdf_file)
+                needs_pass = getattr(d, 'needs_pass', False)
+                try:
+                    d.close()
+                except Exception:
+                    pass
+            except Exception:
+                needs_pass = True
+            if needs_pass:
+                messagebox.showerror("Protected PDF", "This PDF is already password-protected.", parent=pdf_win)
+                pdf_win.destroy()
+                return
+        except Exception:
+            # If fitz not available here, fallback to PyPDF2 quick check
+            try:
+                import PyPDF2  # type: ignore
+                r = PyPDF2.PdfReader(pdf_file)
+                if getattr(r, 'is_encrypted', False):
+                    messagebox.showerror("Protected PDF", "This PDF is already password-protected.", parent=pdf_win)
+                    pdf_win.destroy()
+                    return
+            except Exception:
+                # On any failure, be conservative and block to avoid deadlocks later
+                messagebox.showerror("Protected PDF", "This PDF appears protected.", parent=pdf_win)
+                pdf_win.destroy()
+                return
         password = simpledialog.askstring("PDF Password", "Enter a password for the PDF (leave blank for no password):", show='*', parent=pdf_win)
         if password is None:
             return
@@ -401,8 +437,10 @@ def pdf_manager_action():
         else:
             try:
                 def _prot(_):
-                    protect_pdf(pdf_file, password, output_pdf)
-                    return True, f"Protected PDF saved at: {output_pdf}"
+                    ok, msg = protect_pdf(pdf_file, password, output_pdf)
+                    if not ok:
+                        raise RuntimeError(msg)
+                    return True, msg
                 success, msg = run_with_progress("Protecting PDF", _prot, auto=True)
                 if success:
                     _conversion_service.log_success("pdf_protect", pdf_file, output_pdf, username=current_user)
@@ -420,6 +458,7 @@ def pdf_manager_action():
     ttk.Button(pdf_win, text="Convert PDF to PNG", command=to_png).pack(fill="x", padx=30, pady=5)
     ttk.Button(pdf_win, text="Add Password to PDF", command=add_password).pack(fill="x", padx=30, pady=5)
     ttk.Button(pdf_win, text="Close", command=pdf_win.destroy).pack(fill="x", padx=30, pady=10)
+
 
 def audio_to_text_action():
     """Transcribe selected audio file to text file."""
@@ -497,6 +536,7 @@ def audio_to_text_action():
         _conversion_service.log_error("audio_to_text", audio_file, str(e), username=current_user)
         messagebox.showerror("Error", f"Unexpected error: {e}")
 
+
 def qr_code_action():
     """Generate QR code from text or URL."""
     text = simpledialog.askstring("Input Text", "Enter text or URL to generate a QR Code:")
@@ -531,6 +571,7 @@ def qr_code_action():
     except Exception as e:
         _conversion_service.log_error("qr_code", None, str(e), username=current_user)
         messagebox.showerror("Error", f"Unexpected error: {e}")
+
 
 def batch_video_conversion(output_format):
     """Batch convert videos in a folder."""
@@ -575,6 +616,7 @@ def batch_video_conversion(output_format):
 
     summary = run_steps("Batch video conversion", len(videos), _do_batch)
     messagebox.showinfo("Conversion Completed", summary)
+
 
 def video_conversion_action():
     """
@@ -622,7 +664,8 @@ def video_conversion_action():
 
     btn_confirm = ttk.Button(conv_win, text="Confirm", command=confirm)
     btn_confirm.pack(pady=10)
-    
+
+
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -639,6 +682,7 @@ ENABLE_DB_ENCRYPTION = True
 _k_app: bytes | None = None
 _user_plain_password: str | None = None
 _legacy_decrypted_with_raw: bool = False  # Force re-encryption with K_APP if legacy raw password used
+
 
 def _prepare_database(username: str, raw_password: str) -> int | None:
     """Prepare auth + main DB decryption/initialization. Returns user_id or None on failure."""
@@ -713,6 +757,7 @@ def _prepare_database(username: str, raw_password: str) -> int | None:
         return None
     return user_id
 
+
 def _atomic_encrypt_plaintext_db():
     """Encrypt plaintext DB to encrypted file atomically; only delete plaintext after success."""
     if not (ENABLE_DB_ENCRYPTION and DB_FILE.exists()):
@@ -742,6 +787,7 @@ def _atomic_encrypt_plaintext_db():
             if tmp_path.exists(): tmp_path.unlink()
         except Exception: pass
 
+
 def perform_logout():
     """In-memory logout: encrypt DB, clear UI, prompt login again and rebuild."""
     global current_user, current_role, _user_plain_password
@@ -761,6 +807,7 @@ def perform_logout():
     if uid is None:
         root.destroy(); return
     build_app_ui(username, role, raw_password, uid)
+
 
 def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
     """Builds the main application UI for a logged user."""
@@ -1285,6 +1332,7 @@ def build_app_ui(username: str, role: str, raw_password: str, user_id: int):
     except Exception:
         pass
 
+
 def main():
     """Main GUI entry point (initial launch)."""
     global root, _conversion_service, _user_plain_password
@@ -1313,4 +1361,3 @@ def main():
         root.destroy(); return
     build_app_ui(username, role, raw_password, uid)
     root.mainloop()
-    
