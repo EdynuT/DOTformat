@@ -5,6 +5,7 @@ Last updated: 2025-10-25
 DOTformat is a desktop application that runs locally on your computer. We value your privacy and designed the app to minimize data collection.
 
 ## What the app stores locally
+- All requested data is stored in C:\Users\User\AppData\Local\DOTformat and C:\Users\User\AppData\Local\DOTformatBackups
 - Conversion history ("logs"): feature name, time, status (success/error), brief detail, and input/output file paths.
 - Authentication data: usernames and password hashes (no plaintext). If you enable at-exit encryption, the database is encrypted on close.
 
