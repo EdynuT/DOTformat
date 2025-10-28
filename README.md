@@ -4,14 +4,19 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 2.1.2
+**Current Version:** 2.1.3
 
 ## Changelog
+
+### 2.1.3 
+
+- App released on Microsoft Store
+
+## Past releases:
+
 ### 2.1.2
 
 - Fixed a crash that could occur on Windows 11 packaged builds with the error "'NoneType' object has no attribute 'write'". In no‑console builds, some native libraries try to write to stdout/stderr, which can be `None`. We now silence those streams internally so the feature runs safely.
-
-## Past releases:
 
 ### 2.1.1
 

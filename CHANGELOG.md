@@ -4,6 +4,11 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [2.1.3] - 2025-10-28
+
+### News
+- App released on Microsoft Store
+
 ## [2.1.2] - 2025-10-26
 ### Fixed
 - Background Remover (Windows 11, packaged/no-console builds):
