@@ -56,7 +56,13 @@ def _extra_libs_include_args() -> list[str]:
     return args
 
 
-def build_nuitka(project_root, venv_path=None, low_memory: bool = False, onefile: bool = False) -> None:
+def build_nuitka(
+    project_root,
+    venv_path=None,
+    low_memory: bool = False,
+    onefile: bool = False,
+    app_version: str = "0.0.0.0",
+) -> None:
     project_root = Path(project_root)
     output_dir = project_root / "nuitka"
     cmd = [
@@ -71,6 +77,14 @@ def build_nuitka(project_root, venv_path=None, low_memory: bool = False, onefile
         "--company-name=DOTformat",
         "--product-name=DOTformat",
         "--file-description=DOTformat - Multi-format Converter",
+        # Windows requires a numeric version whenever any of the string version fields
+        # above (company/product name, file description) are given — Nuitka enforces
+        # this itself ("company name and file or product version need to be given when
+        # any version information is given") and refuses to build at all on Windows
+        # without it, even though the same command builds fine on Linux, where these
+        # fields are just informational metadata with no such validation.
+        f"--file-version={app_version}",
+        f"--product-version={app_version}",
         "--python-flag=no_docstrings",
         "--warn-implicit-exceptions",
         # pymupdf/mupdf.py is a SWIG-generated wrapper (~69k lines / 2.6MB of Python) around
@@ -141,8 +155,18 @@ def main() -> None:
         parser.add_argument("--project-root", default=Path(__file__).resolve().parents[2], type=Path)
         parser.add_argument("--low-memory", action="store_true", help="Enable Nuitka's --low-memory mode.")
         parser.add_argument("--onefile", action="store_true", help="Enable Nuitka's --onefile mode.")
+        parser.add_argument(
+            "--app-version",
+            default="0.0.0.0",
+            help="Windows file/product version, e.g. 3.0.0.0 (four dot-separated integers).",
+        )
         args = parser.parse_args()
-        build_nuitka(args.project_root, low_memory=args.low_memory, onefile=args.onefile)
+        build_nuitka(
+            args.project_root,
+            low_memory=args.low_memory,
+            onefile=args.onefile,
+            app_version=args.app_version,
+        )
     except Exception as e:
         print("Build failed. Details:", e)
         sys.exit(1)

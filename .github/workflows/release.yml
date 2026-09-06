@@ -32,7 +32,11 @@ jobs:
 
       - name: Set version
         shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          # Nuitka's Windows version resource wants four dot-separated integers
+          # (e.g. 3.0.0.0); tags are plain vX.Y.Z, so just append a build number.
+          echo "NUITKA_VERSION=${GITHUB_REF_NAME#v}.0" >> "$GITHUB_ENV"
 
       - name: Build PyInstaller onefile
         run: python -m src.utils.build_pyinstaller --onefile
@@ -53,7 +57,8 @@ jobs:
           7z a -tzip "../artifacts/DOTformat-${VERSION}-windows-pyinstaller-standalone.zip" DOTformat
 
       - name: Build Nuitka standalone
-        run: python -m src.utils.build_nuitka
+        shell: bash
+        run: python -m src.utils.build_nuitka --app-version "$NUITKA_VERSION"
 
       - name: Package Nuitka standalone
         shell: bash
@@ -83,7 +88,13 @@ jobs:
           pip install pyinstaller nuitka
 
       - name: Set version
-        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          # Nuitka's Windows version resource wants four dot-separated integers
+          # (e.g. 3.0.0.0); tags are plain vX.Y.Z, so just append a build number.
+          # Applied on Linux too even though it's a no-op there, so both jobs
+          # pass the same --app-version and stay easy to diff.
+          echo "NUITKA_VERSION=${GITHUB_REF_NAME#v}.0" >> "$GITHUB_ENV"
 
       - name: Build PyInstaller onefile
         run: python -m src.utils.build_pyinstaller --onefile
@@ -104,7 +115,7 @@ jobs:
         run: tar -czf "artifacts/DOTformat-${VERSION}-linux-pyinstaller-standalone.tar.gz" -C dist DOTformat
 
       - name: Build Nuitka standalone
-        run: python -m src.utils.build_nuitka
+        run: python -m src.utils.build_nuitka --app-version "$NUITKA_VERSION"
 
       - name: Package Nuitka standalone
         run: |

@@ -31,6 +31,7 @@ The format is inspired by Keep a Changelog and Semantic Versioning.
 	- A PyInstaller onedir standalone build, archived as `.zip` (Windows) / `.tar.gz` (Linux).
 	- A Nuitka standalone build, archived as `.zip` (Windows) / `.tar.gz` (Linux).
 	- All six assets are attached to a GitHub Release for that tag automatically.
+- Fixed the release workflow's Windows Nuitka build failing outright with `FATAL: Error, company name and file or product version need to be given when any version information is given.` Nuitka enforces this on Windows (a PE version resource needs its numeric fields whenever the string ones — company/product name, file description — are set) but doesn't on Linux, which is why it had built fine locally. `build_nuitka()` now also passes `--file-version`/`--product-version`, taking an `app_version` parameter (`--app-version` on the CLI, default `0.0.0.0`); the workflow derives a real one from the pushed tag (`v3.0.0` → `3.0.0.0`) for both OS builds.
 - AUR packaging: added `packaging/aur/PKGBUILD` (package name `dotformat-bin`, following AUR convention for prebuilt-binary packages) plus a `.desktop` entry, installing the pre-built Nuitka standalone Linux tarball from GitHub Releases into `/opt/dotformat` with a `/usr/bin/dotformat` symlink, instead of compiling the heavy ML dependencies from source. See `packaging/aur/README.md` for the publish steps.
 
 ### Changed
