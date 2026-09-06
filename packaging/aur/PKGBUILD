@@ -1,0 +1,38 @@
+# Maintainer: EdynuT <eduardoc.422005@gmail.com>
+#
+# This packages the pre-built Nuitka standalone Linux build published on
+# GitHub Releases (.github/workflows/release.yml), rather than compiling
+# DOTformat's dependencies (onnxruntime, numba, opencv, ...) from source on
+# the user's machine — that build already bundles its own Python interpreter
+# and every dependency, so installing it is just "unpack, symlink, done".
+pkgname=dotformat-bin
+pkgver=3.0.0
+pkgrel=1
+pkgdesc="Multi-format file converter and toolkit (audio, video, image, PDF, QR code, background removal) with a local-first, encrypted, multi-user GUI"
+arch=('x86_64' 'aarch64')
+url="https://github.com/EdynuT/DOTformat"
+license=('MIT')
+provides=('dotformat')
+conflicts=('dotformat')
+depends=('gtk-update-icon-cache' 'hicolor-icon-theme')
+options=('!strip')
+source=("https://github.com/EdynuT/DOTformat/releases/download/v${pkgver}/DOTformat-v${pkgver}-linux-nuitka-standalone.tar.gz"
+        "dotformat.desktop")
+# Regenerate after each release: sha256sum on the actual downloaded files.
+sha256sums=('REPLACE_WITH_REAL_SHA256_OF_THE_RELEASE_TARBALL'
+            'REPLACE_WITH_REAL_SHA256_OF_dotformat.desktop')
+
+package() {
+  install -dm755 "${pkgdir}/opt/dotformat"
+  cp -r "${srcdir}/DOTformat/." "${pkgdir}/opt/dotformat/"
+  chmod +x "${pkgdir}/opt/dotformat/DOTformat"
+
+  install -dm755 "${pkgdir}/usr/bin"
+  ln -s /opt/dotformat/DOTformat "${pkgdir}/usr/bin/dotformat"
+
+  install -Dm644 "${srcdir}/dotformat.desktop" "${pkgdir}/usr/share/applications/dotformat.desktop"
+
+  if [ -f "${srcdir}/DOTformat/images/image.png" ]; then
+    install -Dm644 "${srcdir}/DOTformat/images/image.png" "${pkgdir}/usr/share/pixmaps/dotformat.png"
+  fi
+}

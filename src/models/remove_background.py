@@ -180,16 +180,25 @@ def remove_background():  # noqa: C901 (complexity acceptable for GUI handler)
             _set_progress(5)
             try:
                 from rembg import remove  # type: ignore
-            except Exception:
-                raise RuntimeError("Missing 'rembg'. Install with: python -m pip install rembg")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Missing or broken 'rembg' dependency ({type(e).__name__}: {e}). "
+                    "If running from source, install with: python -m pip install rembg"
+                ) from e
             try:
                 import numpy as np  # type: ignore
-            except Exception:
-                raise RuntimeError("Missing 'numpy'. Install with: python -m pip install numpy")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Missing or broken 'numpy' dependency ({type(e).__name__}: {e}). "
+                    "If running from source, install with: python -m pip install numpy"
+                ) from e
             try:
                 import cv2  # type: ignore
-            except Exception:
-                raise RuntimeError("Missing 'opencv-python-headless'. Install with: python -m pip install opencv-python-headless")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Missing or broken 'opencv-python-headless' dependency ({type(e).__name__}: {e}). "
+                    "If running from source, install with: python -m pip install opencv-python-headless"
+                ) from e
 
             _set_msg("Loading image…")
             _set_progress(10)

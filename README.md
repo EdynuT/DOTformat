@@ -4,15 +4,36 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 2.1.3
+**Current Version:** 3.0.0
 
 ## Changelog
+
+### 3.0.0
+
+- **Native Linux support:** DOTformat now runs, builds, and stores its data natively on Linux, not just Windows.
+    - App data (databases, backups, FFmpeg cache) is resolved per‑OS via `platformdirs`: `%LOCALAPPDATA%\DOTformat` on Windows, `~/.local/share/DOTformat` on Linux.
+    - FFmpeg auto‑download now supports Linux (amd64/arm64 static builds) in addition to Windows, with the extracted binaries made executable automatically.
+    - `setup.py` builds the virtual environment and installs dependencies the same way on both platforms.
+
+- **New build backend: Nuitka.** `setup.py` can now build a standalone executable with either PyInstaller or Nuitka (asked interactively), with an optional low‑memory mode for constrained machines.
+
+- **Smarter PyInstaller builds.** The checked‑in `DOTformat.spec` was removed; `setup.py` now generates and verifies a spec on the fly for the current OS, and lets you choose between a single‑file executable or a one‑folder build.
+
+- **Admin: full user management.** The Options menu now includes a "View Users" screen (admin only) to create users, change roles, and delete users — each action requires re‑entering the admin password, and the base admin/last remaining admin are protected from being demoted or removed. A self‑service "Change Password" dialog was also added for any account.
+
+- **Major internal refactor.** The old single‑file `src/gui.py` was split into a `src/gui/` package (composition root, dialogs, one view module per feature, shared widgets), and session/auth/log business logic that used to live in the UI now lives in dedicated services (`session_service.py`, `auth_service.py`, `log_service.py`). This has no visible effect on functionality but makes the codebase easier to extend and test.
+
+- **Improved diagnostics** for the Background Remover: missing or broken AI dependencies (`rembg`, `numpy`, `opencv-python-headless`) now report the actual underlying error.
+
+- Dependency versions in `requirements.txt` are no longer hard‑pinned, so installs always pick the latest compatible releases.
+
+- The Microsoft Store listing will be discontinued; Windows users can keep getting the `.exe` file from [Releases](https://github.com/EdynuT/DOTformat/releases/latest).
+
+## Past releases:
 
 ### 2.1.3 
 
 - App released on Microsoft Store
-
-## Past releases:
 
 ### 2.1.2
 
@@ -171,6 +192,11 @@ Below are the features currently available:
 - **Local Authentication & Audit:** Users must log in (or register first user) before accessing features. All feature executions are logged and associated with the username.
     - Press Enter to submit Login/Registration; faster flow without clicking the button.
     - Initial focus goes to the password field when the username is prefilled.
+    - Login lockout: after 5 failed attempts, the account is temporarily locked out for 5 minutes.
+
+- **Admin: User Management:** Admins get a "View Users" screen (Options menu) listing every account, with actions to create users, change roles (user ⇄ admin), and delete users — each guarded by re‑entering the admin password.
+    - The base admin account and the last remaining admin can't be demoted or deleted, to prevent accidental lockouts.
+    - Any user can change their own password from the Options menu; this also re‑wraps the database encryption key under the new password.
 
 - **Optional Encrypted Log Storage:** Before exiting you may encrypt the SQLite log database with a password. If encrypted, you will be prompted to decrypt on next launch; skipping creates a fresh empty log instead.
     - Log maintenance: from Conversion History, use “Normalize IDs” to fix legacy logs where IDs are reversed (oldest had the largest ID). This operation only renumbers IDs by creation time and keeps all rows and details intact.
@@ -183,13 +209,32 @@ The project structure is organized as follows:
 
 ```text
 DOTFORMAT/
+├── .github/
+│   └── workflows/
+│       └── release.yml         # Tag-triggered build/release pipeline (Windows + Linux)
+├── packaging/
+│   └── aur/                    # Arch Linux (AUR) package: PKGBUILD, .desktop, publish guide
 ├── src/
 │   ├── images/                 # Image resources (icons, etc.)
 │   │   ├── image.ico
 │   │   └── image.png
-│   ├── controllers/            # UI controllers
-│   │   ├── auth_controller.py  # Login/registration, roles
-│   │   └── log_controller.py   # Log viewer (filter/sort/export)
+│   ├── gui/                    # Graphical user interface (Tkinter)
+│   │   ├── app.py              # Composition root: main window + app lifecycle
+│   │   ├── context.py          # Shared app/session context passed to views
+│   │   ├── dialogs/
+│   │   │   ├── auth_dialog.py      # Login/registration dialog
+│   │   │   └── history_dialog.py   # Conversion history/log viewer
+│   │   ├── views/               # One module per feature button
+│   │   │   ├── image_view.py
+│   │   │   ├── background_view.py
+│   │   │   ├── pdf_view.py
+│   │   │   ├── audio_view.py
+│   │   │   ├── qr_view.py
+│   │   │   ├── video_view.py
+│   │   │   ├── options_view.py     # Options menu, user management
+│   │   │   └── help_view.py        # Help + Privacy/Terms dialogs
+│   │   └── widgets/
+│   │       └── progress.py     # Shared determinate/indeterminate progress dialog
 │   ├── db/                     # Database connections/adapters
 │   │   ├── connection.py       # Main log DB connection
 │   │   ├── auth_connection.py  # Auth DB connection
@@ -199,7 +244,10 @@ DOTFORMAT/
 │   │   └── user_repository.py
 │   ├── services/               # Business logic
 │   │   ├── conversion_service.py
-│   │   └── user_service.py
+│   │   ├── user_service.py     # Registration, auth, admin user management
+│   │   ├── session_service.py  # Session state + DB encryption lifecycle
+│   │   ├── auth_service.py     # Login lockout policy, last-user persistence
+│   │   └── log_service.py      # History filtering/sorting/export/maintenance
 │   ├── models/                 # Feature scripts
 │   │   ├── audio_to_text.py
 │   │   ├── convert_image.py
@@ -207,67 +255,62 @@ DOTFORMAT/
 │   │   ├── pdf_manager.py
 │   │   ├── qrcode_generator.py
 │   │   └── remove_background.py
-│   ├── utils/                  # Helpers/utilities
-│   └── gui.py                  # Graphical user interface (Tkinter)
+│   └── utils/                  # Helpers/utilities
+│       ├── app_paths.py        # Per-OS data directory (Windows/Linux)
+│       ├── ffmpeg_finder.py    # FFmpeg discovery/download (Windows/Linux)
+│       └── build_nuitka.py     # Nuitka build steps used by setup.py
 ├── CHANGELOG.md                # Program detailed changes and updates
-├── DOTformat.spec              # PyInstaller spec file
 ├── LICENSE                     # Project license
 ├── main.py                     # Program entry point
 ├── PRIVACY_POLICY.md           # Privacy Policy
 ├── README.md                   # Project documentation
 ├── requirements.txt            # Python dependencies
-├── setup.py                    # Setup/build script (venv + exe)
+├── setup.py                    # Setup/build script (venv + exe, PyInstaller or Nuitka)
 └── TERMS.md                    # Terms & Conditions
 ```
 
-## Requirements
-
-- python < 3.11
-
 ## Installation
 
-Follow these steps on Windows (PowerShell) to set up the environment and optionally build the executable.
+DOTformat runs natively on both Windows and Linux. Clone the repository, then run the one‑shot setup script for your platform.
 
 1) Clone the repository
 
-```powershell
+```bash
 git clone https://github.com/EdynuT/DOTformat.git
 cd DOTformat
 ```
 
 2) One‑shot setup (recommended)
 
+On Windows (PowerShell):
+
 ```powershell
 python .\setup.py
 ```
 
-This will create a virtual environment, install dependencies, and build the executable in `dist/`.
+On Linux:
+
+```bash
+python3 setup.py
+```
+
+This creates a virtual environment, downloads FFmpeg automatically if it isn't already available, installs dependencies, and then asks which build backend to use:
+
+- **1 – PyInstaller:** generates a fresh `DOTformat.spec` for your OS and asks whether to build a single file (one executable, simplest to distribute) or a one‑folder build (`dist/DOTformat/`, a launcher plus its dependencies — starts faster since nothing needs to be unpacked first).
+- **2 – Nuitka (recommended):** compiles a standalone, self‑contained folder under `nuitka/main.dist/`. You'll be asked whether to enable low‑memory mode, useful on machines with limited RAM.
 
 Notes:
-- Default data location:
-    - Windows: %LOCALAPPDATA%\DOTformat
-- During build, the log may appear to stall at:
+- Default data location (databases, backups, FFmpeg cache):
+    - Windows: `%LOCALAPPDATA%\DOTformat`
+    - Linux: `~/.local/share/DOTformat`
+- To run from source without building an executable, just install the requirements (`pip install -r requirements.txt`) into a virtual environment and run `python main.py`.
+- Nuitka builds can take several minutes and use significant RAM/CPU while compiling; this is expected.
 
-    ```
-    Building PKG (CArchive) DOTformat.pkg
-    ```
+### Prebuilt downloads
 
-Don't worry, the file is a little larger than normal, so it takes a few minutes to build.
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds DOTformat with both PyInstaller and Nuitka on Windows and Linux and publishes everything to that tag's [GitHub Release](https://github.com/EdynuT/DOTformat/releases): a Windows `.exe`, a Linux binary, and standalone `.zip`/`.tar.gz` builds for each backend.
 
-## Changes
-
-- If any unofficial changes are made to the project (such as adding a new script), it is recommended to update the .spec file:
-
-```sh
-cd DOTformat
-pyi-makespec --name DOTformat --onefile --windowed main.py
-```
-
-- Then, create the executable file:
-
-```sh
-pyinstaller DOTformat.spec
-```
+Arch Linux users will be able to install the `dotformat-bin` package from the AUR once published (see [packaging/aur/](./packaging/aur/)), which installs the prebuilt Nuitka Linux build.
 
 ## Contributions
 
@@ -286,11 +329,11 @@ MIT License
 
 ## Message
 
-Background Remover in 2.x works best when running from source with the extra AI libraries installed:
+Background Remover works best when running from source (or a Nuitka build, which bundles it) with the extra AI libraries installed:
 
 - Install: `pip install rembg numpy opencv-python-headless`
-- The portable EXE intentionally does not include these heavy packages; if they’re missing, the app will show a quick message explaining how to enable the feature.
+- A minimal PyInstaller build may intentionally skip these heavy packages; if they're missing or broken, the app will show a message explaining the exact error and how to enable the feature.
 
-For the most recent fixes and security updates, use DOTFORMAT >= 2.0.0. 
+For the most recent fixes, native Linux support, and security updates, use DOTFORMAT >= 3.0.0.
 
 I occasionally ship small bug fixes between feature releases.

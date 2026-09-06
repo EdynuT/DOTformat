@@ -1,0 +1,134 @@
+name: Release builds
+
+# Runs whenever a version tag (v1.2.3) is pushed. Builds DOTformat with both
+# PyInstaller and Nuitka on Windows and Linux, packages every variant, and
+# publishes them all to a GitHub Release for that tag.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller nuitka
+
+      - name: Set version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
+      - name: Build PyInstaller onefile
+        run: python -m src.utils.build_pyinstaller --onefile
+
+      - name: Package PyInstaller onefile
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp dist/DOTformat.exe "artifacts/DOTformat-${VERSION}-windows.exe"
+
+      - name: Build PyInstaller onedir
+        run: python -m src.utils.build_pyinstaller --onedir
+
+      - name: Package PyInstaller standalone
+        shell: bash
+        run: |
+          cd dist
+          7z a -tzip "../artifacts/DOTformat-${VERSION}-windows-pyinstaller-standalone.zip" DOTformat
+
+      - name: Build Nuitka standalone
+        run: python -m src.utils.build_nuitka
+
+      - name: Package Nuitka standalone
+        shell: bash
+        run: |
+          mv nuitka/main.dist nuitka/DOTformat
+          cd nuitka
+          7z a -tzip "../artifacts/DOTformat-${VERSION}-windows-nuitka-standalone.zip" DOTformat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: artifacts/*
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller nuitka
+
+      - name: Set version
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
+      - name: Build PyInstaller onefile
+        run: python -m src.utils.build_pyinstaller --onefile
+
+      - name: Package PyInstaller onefile (single ELF executable)
+        run: |
+          mkdir -p artifacts
+          cp dist/DOTformat "artifacts/DOTformat-${VERSION}-linux"
+          chmod +x "artifacts/DOTformat-${VERSION}-linux"
+
+      - name: Clean onefile output before onedir build
+        run: rm -rf dist build DOTformat.spec
+
+      - name: Build PyInstaller onedir
+        run: python -m src.utils.build_pyinstaller --onedir
+
+      - name: Package PyInstaller standalone
+        run: tar -czf "artifacts/DOTformat-${VERSION}-linux-pyinstaller-standalone.tar.gz" -C dist DOTformat
+
+      - name: Build Nuitka standalone
+        run: python -m src.utils.build_nuitka
+
+      - name: Package Nuitka standalone
+        run: |
+          mv nuitka/main.dist nuitka/DOTformat
+          tar -czf "artifacts/DOTformat-${VERSION}-linux-nuitka-standalone.tar.gz" -C nuitka DOTformat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-builds
+          path: artifacts/*
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -la artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

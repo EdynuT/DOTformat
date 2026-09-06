@@ -4,6 +4,57 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [3.0.0] - 2026-09-06
+
+### Added
+- Native Linux support:
+	- `src/utils/app_paths.py` resolves the per-user data directory via `platformdirs` on every OS: `%LOCALAPPDATA%/DOTformat` on Windows and `~/.local/share/DOTformat` on Linux. Databases, backups, and the FFmpeg cache all follow this path automatically.
+	- `src/utils/ffmpeg_finder.py` now downloads a static, self-contained FFmpeg build for Linux (amd64/arm64, via John Van Sickle's builds) when it isn't already on `PATH` or bundled, mirroring the existing Windows zip flow. Extracted binaries are marked executable (`chmod +x`) automatically.
+	- `setup.py` builds the virtual environment and installs dependencies identically on Linux and Windows, resolving the venv's `bin/`/`Scripts/` layout per platform.
+- Nuitka as a build backend:
+	- New `src/utils/build_nuitka.py` compiles DOTformat into a standalone folder (`nuitka/main.dist/`) — or, with `onefile=True`, a single executable — with Tkinter, PIL, PyMuPDF, rembg, and onnxruntime bundled.
+	- `PyMuPDF`/`fitz`, `numba`, `llvmlite`, and `pymatting` are deliberately excluded from Nuitka's C compilation (they either crash the compiler on large generated sources or rely on runtime source introspection). They're instead shipped as plain, uncompiled files under an `extra-libs/` folder via Nuitka's `--include-raw-dir` (which bypasses Nuitka's usual filtering-out of `.py`/`.so` files from bundled data, and goes through the same data embed/extract pipeline Nuitka uses for `--onefile`, so it places the files correctly whichever mode is used), imported at startup via a `sys.path` bootstrap in `main.py`.
+	- `setup.py` now asks interactively whether to build with PyInstaller or Nuitka, with an optional low-memory mode for Nuitka on constrained machines.
+- Refactored `src/utils/build_nuitka.py`'s low-memory toggle: it previously read a module-level `LOW_MEMORY_FLAG` from `setup.py` via `from setup import LOW_MEMORY_FLAG`, which (due to how that import interacted with `setup.py` being executed as `__main__`) always evaluated to `False` regardless of the user's answer — `--low-memory` was silently never applied. `build_nuitka()` now takes `low_memory` as a plain parameter.
+- `build_nuitka()` also gained an `onefile` parameter (`--onefile` passed through to Nuitka). This replaced an earlier approach that copied the `extra-libs/` files into `main.dist/` as a post-build step: that only worked for `--standalone`, since `--onefile` seals its package *during* the Nuitka build itself, before any post-build copy could run — switching to `--include-raw-dir` (above) fixed this for both modes and let the whole post-build copy step be deleted.
+- Fixed a major Nuitka build-time regression: `--jobs=1` was being passed unconditionally, forcing the ~1500 generated C files to compile one at a time regardless of how many CPU cores were available (a full build measured at ~26 minutes on a 16-core machine, effectively using one of them). `--jobs=1` is now only added when `low_memory=True` — serializing compilation is a deliberate trade-off for that mode, since each parallel `gcc` process adds to peak RAM use, which is exactly what low-memory mode exists to avoid. Everywhere else, `--jobs` is left unset so Nuitka defaults to using all available cores.
+- PyInstaller spec generation and onefile/onedir choice:
+	- New `src/utils/build_pyinstaller.py` renders `DOTformat.spec` from a template at build time instead of relying on a checked-in spec, and verifies the generated file (present, non-empty, contains the expected `Analysis`/`EXE` blocks, and parses as valid Python) before invoking PyInstaller against it.
+	- The spec adapts to the host OS automatically (bundles `ffmpeg`/`ffprobe`/`ffplay` without the `.exe` suffix on Linux, only applies the `.ico` icon on Windows).
+	- `setup.py` now asks whether the PyInstaller build should be a single file (`--onefile`-equivalent, one executable) or a one-folder build (a thin launcher plus a `dist/DOTformat/` folder of dependencies, avoiding onefile's slower startup extraction).
+- Fixed Background Remover crashing in both PyInstaller build modes (onefile and onedir) with `PackageNotFoundError: No package metadata was found for pymatting`. The spec's `candidate_libs` called `collect_all('rembg')`, which only copies `rembg`'s own dist-info metadata, not its dependencies' — `pymatting` (rembg's alpha-matting dependency) reads its own version via `importlib.metadata.version(__name__)` at import time, and had no metadata bundled at all. `pymatting` is now included in `candidate_libs` directly.
+- Admin user management UI: a full "View Users" screen (Options menu, admin only) lists all accounts and lets an admin create users, change roles, and delete users, each action gated behind re-entering the admin's password. Safeguards prevent demoting/deleting the base admin, deleting the last remaining admin, or changing your own role.
+- Self-service "Change Password" dialog in the Options menu, re-wrapping the encryption master key under the new password automatically.
+- Friendlier Background Remover diagnostics: missing/broken `rembg`, `numpy`, or `opencv-python-headless` now report the underlying exception type and message instead of a generic "missing dependency" note.
+- Automated release builds: `.github/workflows/release.yml` triggers on every `v*` tag push and builds, on both Windows and Linux:
+	- A PyInstaller onefile executable (`DOTformat-<tag>-windows.exe` / `DOTformat-<tag>-linux`, the latter a plain, directly runnable ELF binary).
+	- A PyInstaller onedir standalone build, archived as `.zip` (Windows) / `.tar.gz` (Linux).
+	- A Nuitka standalone build, archived as `.zip` (Windows) / `.tar.gz` (Linux).
+	- All six assets are attached to a GitHub Release for that tag automatically.
+- AUR packaging: added `packaging/aur/PKGBUILD` (package name `dotformat-bin`, following AUR convention for prebuilt-binary packages) plus a `.desktop` entry, installing the pre-built Nuitka standalone Linux tarball from GitHub Releases into `/opt/dotformat` with a `/usr/bin/dotformat` symlink, instead of compiling the heavy ML dependencies from source. See `packaging/aur/README.md` for the publish steps.
+
+### Changed
+- Major internal refactor of the GUI: the single 1,363-line `src/gui.py` was split into a `src/gui/` package —
+	- `app.py` (window composition root and app lifecycle), `context.py` (shared app/session context passed to views),
+	- `dialogs/` (`auth_dialog.py`, `history_dialog.py`),
+	- `views/` (one file per feature: `image_view.py`, `background_view.py`, `pdf_view.py`, `audio_view.py`, `qr_view.py`, `video_view.py`, `options_view.py`, `help_view.py`),
+	- `widgets/progress.py` (shared progress-dialog widget).
+	- This mirrors the controller/service/repository split already used elsewhere in the codebase and removes the old `src/controllers/auth_controller.py` and `src/controllers/log_controller.py`, whose responsibilities moved into dedicated services (below) and the new dialogs.
+- New service layer extracted from what used to be GUI-embedded logic:
+	- `src/services/session_service.py`: owns the logged-in session state and the full master-key (K_APP)/database encryption-at-rest lifecycle (unwrap on login, atomic encrypt on logout/close, legacy-password fallback).
+	- `src/services/auth_service.py`: login lockout policy (5 failed attempts → 5 minute lockout) and last-used-username persistence, with no UI dependency.
+	- `src/services/log_service.py`: row fetching, filtering, sorting, CSV/XLSX exporting, and log maintenance (normalize IDs / restore backup) for the History dialog, independent of Tkinter.
+	- `src/services/user_service.py` gained the full admin-management API (`list_users`, `create_user_by_admin`, `change_role`, `delete_user`, `change_own_password`), backed by new `UserRepository` methods (`find_by_id`, `list_all`, `count_admins`, `first_user_id`, `update_role`, `update_password_hash`, `delete`).
+- Distribution: the Microsoft Store listing will be discontinued; Windows `.exe` builds continue to be published via GitHub Releases.
+- `requirements.txt`: `pyreadline3` and `pywin32-ctypes` now carry a `sys_platform == "win32"` marker. Both packages have no usable distribution on Linux/macOS, so `pip install -r requirements.txt` would fail outright on Linux without this — a direct blocker for the native Linux support and Linux CI builds above.
+- Packaging: dependency versions were unpinned in `requirements.txt` in favor of always installing the latest compatible release, since the previous 2023-era pins were increasingly hard to resolve on current Python/OS combinations; `nuitka` was added as a build dependency alongside `pyinstaller`.
+- `.gitignore`: build output directories are now matched broadly (`dist*/`, `nuitka/`), and `*.so`/`*.spec` files are ignored (Linux shared objects and locally generated PyInstaller spec files).
+
+### Removed
+- `DOTformat.spec` (the checked-in PyInstaller spec file) was removed from the repository; PyInstaller builds now generate their spec on demand, and Nuitka is the primary recommended build path going forward.
+- `src/controllers/` package (`auth_controller.py`, `log_controller.py`): superseded by the `src/gui/dialogs/` + `src/services/` split described above.
+- Compiled `__pycache__` artifacts that had been accidentally committed under `src/__pycache__` and `src/models/__pycache__`.
+
 ## [2.1.3] - 2025-10-28
 
 ### News

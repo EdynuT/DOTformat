@@ -4,77 +4,80 @@
 # Some heavy/optional packages (rembg + friends) can be commented out if issues arise.
 
 # --- Core / utilities ---
-altgraph==0.17.1
-attrs==23.1.0
-certifi==2023.7.22
-chardet==4.0.0
-charset-normalizer==2.1.1
-colorama==0.4.6
-Deprecated==1.2.13
-decorator==5.1.1
-fire==0.4.0
-future==0.18.2
-idna==3.4
-packaging==21.3
+altgraph
+attrs
+certifi
+chardet
+charset-normalizer
+colorama
+Deprecated
+decorator
+fire
+future
+idna
+packaging
 
 # Used to resolve per-user data directory for persistent databases (app_paths)
-platformdirs==3.10.0   
-proglog==0.1.10
-python-dotenv==0.21.0
-requests==2.31.0
-typing_extensions==4.5.0
-urllib3==1.26.15
+platformdirs 
+proglog
+python-dotenv
+requests
+typing_extensions
+urllib3
 
 # --- Logging/progress/misc ---
-coloredlogs==15.0.1
-humanfriendly==9.2
-termcolor==1.1.0
-tqdm==4.65.0
+coloredlogs
+humanfriendly
+termcolor
+tqdm
 
 # --- Windows & system helpers ---
-pefile==2022.5.30
-pyreadline3==3.5.4
-pywin32-ctypes==0.2.0
+# pyreadline3 and pywin32-ctypes have no usable distribution on Linux/macOS;
+# markers keep `pip install -r requirements.txt` working on every OS.
+pefile
+pyreadline3; sys_platform == "win32"
+pywin32-ctypes; sys_platform == "win32"
 
 # --- Media/PDF/image features ---
-ffmpeg-python==0.2.0
-imageio==2.9.0
-imageio-ffmpeg==0.4.5
-moviepy==1.0.3
-img2pdf==0.3.6
-pdf2image==1.16.0
-PyPDF2==2.11.2
-pdf2docx==0.5.6
-qrcode==7.3.1
-pydub==0.25.1
-PyMuPDF==1.21.1
-pikepdf==5.3.0
-lxml==4.9.3
-reportlab==4.4.1
-fonttools==4.39.3
-SpeechRecognition==3.8.1
+ffmpeg-python
+imageio
+imageio-ffmpeg
+moviepy
+img2pdf
+pdf2image
+PyPDF2
+pdf2docx
+qrcode
+pydub
+PyMuPDF
+pikepdf
+lxml
+reportlab
+fonttools
+SpeechRecognition
 
 # --- Scientific/graphs (lighter first) ---
-networkx==2.8.8
-sympy==1.11.1
-mpmath==1.2.1
+networkx
+sympy
+mpmath
 
 # --- Heavy/fragile section (optional / order matters) ---
-PyMatting==1.1.14
-onnxruntime==1.15.0
-opencv-python-headless==4.6.0.66
-scikit-image==0.19.3
-scipy==1.9.3
-pillow==9.5.0
-numpy==1.23.5
-numba==0.55.2
-llvmlite==0.38.1
-rembg==2.0.33   
+PyMatting
+onnxruntime
+opencv-python-headless
+scikit-image
+scipy
+pillow
+numpy
+numba
+llvmlite
+rembg
 # Optional: uncomment to enable background removal if not bundled
 
 # --- Security (encryption) ---
-pycryptodome==3.20.0   
+pycryptodome
 # AES EAX + PBKDF2 for full database file encryption
 
 # --- Build tool ---
-pyinstaller==5.13.0
+pyinstaller
+nuitka

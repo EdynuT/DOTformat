@@ -11,7 +11,8 @@ venv/
 
 # Build / distribution artifacts
 build/
-dist/
+dist*/
+nuitka/
 
 # FFmpeg bundle
 ffmpeg/
@@ -25,6 +26,7 @@ ffmpeg/
 *.log
 pip-wheel-metadata/
 *.tmp
+*.xml
 
 # OS specifics
 .DS_Store
@@ -33,7 +35,6 @@ Thumbs.db
 # PyInstaller
 *.manifest
 *.dll
+*.so
+*.spec
 *.pkg
-
-# Local scripts/cache
-.env

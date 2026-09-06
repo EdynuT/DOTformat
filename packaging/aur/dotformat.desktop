@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=DOTformat
+Comment=Multi-format file converter and toolkit (audio, video, image, PDF, QR code, background removal)
+Exec=dotformat
+Icon=dotformat
+Terminal=false
+Categories=Utility;Graphics;AudioVideo;Office;
