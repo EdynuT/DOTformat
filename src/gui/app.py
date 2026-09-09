@@ -26,11 +26,28 @@ DEV_FRESH_START = False  # False: preserve DB between runs (enable real login fl
 
 
 def resource_path(relative_path: str) -> str:
-    """Get absolute path to a resource: works for dev, PyInstaller, and Nuitka standalone builds."""
+    """Get absolute path to a resource: works for dev, PyInstaller, and Nuitka builds.
+
+    The Nuitka branch used to read ``os.path.dirname(sys.executable)``, which is
+    wrong on Windows onefile builds specifically: Nuitka's own onefile bootstrap
+    leaves ``sys.executable`` pointing at the original launcher .exe (wherever the
+    user downloaded it, e.g. Downloads) rather than at the temp directory the
+    payload was actually extracted to -- confirmed by a user's build looking for
+    ``images/image.png`` inside their Downloads folder and failing. This is a
+    documented Nuitka asymmetry (Windows-only; Linux onefile does not have it) --
+    see https://github.com/Nuitka/Nuitka/issues/3672.
+    ``__file__`` does not have that problem: Nuitka rewrites it, on every OS and
+    in both standalone and onefile mode, to this module's real location inside
+    the unpacked tree (verified here for both modes), which is what the Nuitka
+    user manual itself recommends for finding bundled files. This module lives
+    at ``src/gui/app.py``, so two levels up from its ``__file__`` is the same
+    root that ``--include-data-dir=...=images`` in build_nuitka.py and the
+    PyInstaller spec both bundle ``images/`` under.
+    """
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         base_path = sys._MEIPASS  # PyInstaller onefile
     elif globals().get("__compiled__"):
-        base_path = os.path.dirname(sys.executable)  # Nuitka standalone/onefile
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))  # Nuitka standalone/onefile
     else:
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # src/
     return os.path.join(base_path, relative_path)
