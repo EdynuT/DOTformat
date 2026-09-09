@@ -4,9 +4,15 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 3.0.0
+**Current Version:** 3.0.1
 
 ## Changelog
+
+### 3.0.1
+
+- **Nuitka onefile:** added as a fourth downloadable build variant (alongside PyInstaller onefile/onedir and Nuitka standalone), for both Windows and Linux.
+
+- Fixed the Nuitka standalone/onefile Windows build crashing the Background Remover with a `llvmlite.dll` load error, and opening a visible console window behind the app.
 
 ### 3.0.0
 
@@ -308,7 +314,7 @@ Notes:
 
 ### Prebuilt downloads
 
-Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds DOTformat with both PyInstaller and Nuitka on Windows and Linux and publishes everything to that tag's [GitHub Release](https://github.com/EdynuT/DOTformat/releases): a Windows `.exe`, a Linux binary, and standalone `.zip`/`.tar.gz` builds for each backend.
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds DOTformat with both PyInstaller and Nuitka on Windows and Linux and publishes everything to that tag's [GitHub Release](https://github.com/EdynuT/DOTformat/releases): a PyInstaller and a Nuitka single-file build (`.exe` on Windows, a plain executable on Linux) for each backend, plus standalone `.zip`/`.tar.gz` builds.
 
 Arch Linux users will be able to install the `dotformat-bin` package from the AUR once published (see [packaging/aur/](./packaging/aur/)), which installs the prebuilt Nuitka Linux build.
 
@@ -333,6 +339,8 @@ Background Remover works best when running from source (or a Nuitka build, which
 
 - Install: `pip install rembg numpy opencv-python-headless`
 - A minimal PyInstaller build may intentionally skip these heavy packages; if they're missing or broken, the app will show a message explaining the exact error and how to enable the feature.
+
+I will try to implement them in future builds, but I am currently dealing with stability issues.
 
 For the most recent fixes, native Linux support, and security updates, use DOTFORMAT >= 3.0.0.
 

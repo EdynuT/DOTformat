@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          cp dist/DOTformat.exe "artifacts/DOTformat-${VERSION}-windows.exe"
+          cp dist/DOTformat.exe "artifacts/DOTformat-${VERSION}-windows-pyinstaller-onefile.exe"
 
       - name: Build PyInstaller onedir
         run: python -m src.utils.build_pyinstaller --onedir
@@ -55,6 +55,16 @@ jobs:
         run: |
           cd dist
           7z a -tzip "../artifacts/DOTformat-${VERSION}-windows-pyinstaller-standalone.zip" DOTformat
+
+      - name: Build Nuitka onefile
+        shell: bash
+        run: python -m src.utils.build_nuitka --onefile --app-version "$NUITKA_VERSION"
+
+      - name: Package Nuitka onefile
+        shell: bash
+        run: |
+          cp nuitka/DOTformat.exe "artifacts/DOTformat-${VERSION}-windows-nuitka-onefile.exe"
+          rm -rf nuitka
 
       - name: Build Nuitka standalone
         shell: bash
@@ -102,8 +112,8 @@ jobs:
       - name: Package PyInstaller onefile (single ELF executable)
         run: |
           mkdir -p artifacts
-          cp dist/DOTformat "artifacts/DOTformat-${VERSION}-linux"
-          chmod +x "artifacts/DOTformat-${VERSION}-linux"
+          cp dist/DOTformat "artifacts/DOTformat-${VERSION}-linux-pyinstaller-onefile"
+          chmod +x "artifacts/DOTformat-${VERSION}-linux-pyinstaller-onefile"
 
       - name: Clean onefile output before onedir build
         run: rm -rf dist build DOTformat.spec
@@ -113,6 +123,15 @@ jobs:
 
       - name: Package PyInstaller standalone
         run: tar -czf "artifacts/DOTformat-${VERSION}-linux-pyinstaller-standalone.tar.gz" -C dist DOTformat
+
+      - name: Build Nuitka onefile
+        run: python -m src.utils.build_nuitka --onefile --app-version "$NUITKA_VERSION"
+
+      - name: Package Nuitka onefile
+        run: |
+          cp nuitka/DOTformat "artifacts/DOTformat-${VERSION}-linux-nuitka-onefile"
+          chmod +x "artifacts/DOTformat-${VERSION}-linux-nuitka-onefile"
+          rm -rf nuitka
 
       - name: Build Nuitka standalone
         run: python -m src.utils.build_nuitka --app-version "$NUITKA_VERSION"

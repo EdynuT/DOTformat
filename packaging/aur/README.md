@@ -11,7 +11,7 @@ future source-based `dotformat` package).
 
 ## Before the first publish
 
-1. Push a version tag (e.g. `v3.0.0`) and wait for the "Release builds" workflow
+1. Push a version tag (e.g. `v3.0.1`) and wait for the "Release builds" workflow
    to finish and attach its assets to the GitHub Release.
 2. Update `pkgver` in `PKGBUILD` to match the tag (without the leading `v`).
 3. Compute the real checksums and replace the placeholders:

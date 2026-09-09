@@ -6,7 +6,7 @@
 # the user's machine — that build already bundles its own Python interpreter
 # and every dependency, so installing it is just "unpack, symlink, done".
 pkgname=dotformat-bin
-pkgver=3.0.0
+pkgver=3.0.1
 pkgrel=1
 pkgdesc="Multi-format file converter and toolkit (audio, video, image, PDF, QR code, background removal) with a local-first, encrypted, multi-user GUI"
 arch=('x86_64' 'aarch64')
@@ -19,8 +19,8 @@ options=('!strip')
 source=("https://github.com/EdynuT/DOTformat/releases/download/v${pkgver}/DOTformat-v${pkgver}-linux-nuitka-standalone.tar.gz"
         "dotformat.desktop")
 # Regenerate after each release: sha256sum on the actual downloaded files.
-sha256sums=('REPLACE_WITH_REAL_SHA256_OF_THE_RELEASE_TARBALL'
-            'REPLACE_WITH_REAL_SHA256_OF_dotformat.desktop')
+sha256sums=('0cce1dd1194165cd13b5f009ded9aca7a1907348d0777419607651f7a983e6ea'
+            '9789b633139fd487fcb3679a01a99a744bc637ea91488220bb8ab76197339385')
 
 package() {
   install -dm755 "${pkgdir}/opt/dotformat"

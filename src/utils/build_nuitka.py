@@ -53,6 +53,19 @@ def _extra_libs_include_args() -> list[str]:
     for name in DIST_INFO_NAMES:
         dist_info_src = Path(str(importlib.metadata.distribution(name)._path))  # type: ignore[attr-defined]
         args.append(f"--include-raw-dir={dist_info_src}=extra-libs/{dist_info_src.name}")
+    # On Windows, some of these wheels are repaired by delvewheel, which moves runtime
+    # DLLs (e.g. a bundled msvcp140) into a sibling "<name>.libs" folder next to the
+    # package itself (site-packages/llvmlite.libs, alongside site-packages/llvmlite) and
+    # patches the package's __init__.py to add that folder to the DLL search path before
+    # loading its own extension. --nofollow-import-to skips Nuitka's own DLL-dependency
+    # walk for these packages entirely, so without this, that sibling folder never gets
+    # shipped and the package's native extension fails to load at runtime with an
+    # opaque "could not find/load shared object" error, even though the extension file
+    # itself is right there — because one of *its* dependencies is missing.
+    for name, src in EXTRA_LIBS.items():
+        libs_dir = src.parent / f"{name}.libs"
+        if libs_dir.is_dir():
+            args.append(f"--include-raw-dir={libs_dir}=extra-libs/{libs_dir.name}")
     return args
 
 
@@ -134,6 +147,11 @@ def build_nuitka(
         "--include-package-data=speech_recognition:*.txt",
         str(project_root / "main.py"),
     ]
+    if sys.platform == "win32":
+        # Nuitka allocates a console window by default on Windows (unlike PyInstaller,
+        # which our spec already builds with console=False) — without this, DOTformat's
+        # Tkinter window opens with a visible cmd.exe window alongside it.
+        cmd.insert(-1, "--windows-console-mode=disable")
     if low_memory:
         cmd.insert(-1, "--low-memory")
         # Compiling multiple of the ~1500 generated C files at once is what makes a full

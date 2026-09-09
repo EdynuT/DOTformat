@@ -4,6 +4,18 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [3.0.1] - 2026-09-08
+
+### Added
+- Nuitka onefile as a fourth build variant (alongside PyInstaller onefile/onedir and Nuitka standalone) in both `setup.py` and the release workflow, giving a true Nuitka single-file build on Windows and Linux — extra-libs are shipped via `--include-raw-dir`, which Nuitka embeds/extracts correctly in `--onefile` mode too, not just `--standalone`.
+
+### Changed
+- Renamed the PyInstaller onefile release assets to match the naming already used for every other variant (`<backend>-<mode>`): `DOTformat-<tag>-windows.exe` → `DOTformat-<tag>-windows-pyinstaller-onefile.exe`, and `DOTformat-<tag>-linux` → `DOTformat-<tag>-linux-pyinstaller-onefile`.
+
+### Fixed
+- Nuitka standalone Windows build crashing the Background Remover with `OSError: Could not find/load shared object file 'llvmlite.dll'`. Windows wheels for packages like llvmlite are commonly repaired by `delvewheel`, which moves a runtime DLL dependency (e.g. a bundled `msvcp140`) into a sibling `<name>.libs` folder next to the package (`site-packages/llvmlite.libs`, alongside `site-packages/llvmlite`) and patches the package's `__init__.py` to add that folder to the DLL search path before loading its own extension. Since `--nofollow-import-to` (used for `llvmlite`, see 3.0.0 below) skips Nuitka's own DLL-dependency scan for it entirely, that sibling `.libs` folder was never being shipped — `llvmlite.dll` itself was present, but one of *its* dependencies wasn't. `_extra_libs_include_args()` now also ships any `<name>.libs` sibling folder it finds next to an extra-lib package.
+- Nuitka builds (standalone and onefile) opening a visible console window alongside DOTformat's Tkinter window on Windows. Nuitka allocates a console by default there, unlike PyInstaller (whose spec already sets `console=False`); `build_nuitka()` now passes `--windows-console-mode=disable` on Windows.
+
 ## [3.0.0] - 2026-09-06
 
 ### Added

@@ -38,3 +38,8 @@ Thumbs.db
 *.so
 *.spec
 *.pkg
+
+# makepkg (AUR local testing)
+packaging/aur/pkg/
+packaging/aur/src/
+*.pkg.tar.zst
