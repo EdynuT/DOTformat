@@ -38,6 +38,12 @@ candidate_libs = [
     'speech_recognition',
     'img2pdf',
     'pikepdf',
+    # SVG support in the image converter. Both are single self-contained native
+    # extension modules; they are imported lazily inside functions in
+    # src/models/svg_converter.py, so collect them explicitly rather than relying
+    # on the import graph reaching them.
+    'vtracer',             # raster -> SVG
+    'resvg_py',            # SVG -> raster
     'rembg',               # optional - may be absent
     # rembg's own alpha-matting dependency. collect_all('rembg') only copies rembg's
     # own dist-info metadata, not its dependencies' — pymatting reads its version via

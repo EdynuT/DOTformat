@@ -134,6 +134,15 @@ def build_nuitka(
         # `import cmath` inside numba's own source and leaves the .so out, so it must be
         # requested explicitly here.
         "--include-module=cmath",
+        # vtracer (raster -> SVG) and resvg_py (SVG -> raster) are single native
+        # extension modules. src/models/svg_converter.py imports them lazily,
+        # inside functions wrapped in try/except, so that the app can report a
+        # clear message when they are missing instead of failing at startup —
+        # which also means Nuitka's static analysis has no top-level import to
+        # follow. Request them explicitly or the SVG features are silently absent
+        # from the build.
+        "--include-module=vtracer",
+        "--include-module=resvg_py",
         # Nuitka's runtime import hook blocks any import of a --nofollow-import-to'd
         # module by default (a safety net against accidental exclusion), even when the
         # module is reachable on sys.path via our extra-libs bootstrap in main.py. This

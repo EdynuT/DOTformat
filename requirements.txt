@@ -56,6 +56,20 @@ reportlab
 fonttools
 SpeechRecognition
 
+# --- SVG (image converter) ---
+# Both ship self-contained native wheels for Linux and Windows, so neither needs
+# a compiler or an external runtime library at build time.
+vtracer
+# raster -> SVG tracing.
+# NOTE: vtracer 0.6.15 segfaults on Python 3.14 when its optional parameters are
+# passed by KEYWORD (even color_precision=6, its own default). src/models/
+# svg_converter.py therefore calls it positionally only. Do not "clean that up".
+resvg-py
+# SVG -> raster rendering. Chosen over PyMuPDF (renders CSS rules and gradients
+# as solid black, ignores clipPath/mask/dasharray) and over CairoSVG (silently
+# ignores feColorMatrix filters and luminance masks, and needs libcairo-2.dll
+# hand-bundled on Windows). resvg matched Firefox on every feature tested.
+
 # --- Scientific/graphs (lighter first) ---
 networkx
 sympy
