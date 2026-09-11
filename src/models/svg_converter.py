@@ -27,8 +27,7 @@ build has to bundle the GTK cairo stack and its whole dependency chain by hand.
 
 resvg matched Firefox everywhere, and its wheel is a single self-contained
 2.7 MB native module (``abi3``, so one wheel covers 3.10 through 3.14 on both
-Linux and Windows). PyInstaller and Nuitka pick it up without a hook, exactly
-like vtracer.
+Linux and Windows). Nuitka picks it up without a hook, exactly like vtracer.
 
 Why the pre-pass in :func:`snap_colors` exists
 ----------------------------------------------

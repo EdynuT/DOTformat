@@ -1,6 +1,6 @@
 """Centralized application path resolution.
 
-When packaged as a PyInstaller onefile executable, the working directory is
+When packaged as a Nuitka onefile executable, the working directory is
 usually a temp folder, so we store persistent data (SQLite DBs, encrypted
 variants) under a per-user application data directory.
 

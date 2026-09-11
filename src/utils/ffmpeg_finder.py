@@ -80,14 +80,6 @@ def _candidates(exe: str) -> list[Path]:
     # 3) Local app data cache
     cand.append(_localapp_ffmpeg_bin() / exe)
 
-    # 4) PyInstaller extraction
-    if getattr(sys, "frozen", False):
-        base = getattr(sys, "_MEIPASS", None)
-        if base:
-            cand.append(Path(base) / "ffmpeg" / "bin" / exe)
-            cand.append(Path(base) / "ffmpeg" / exe)
-        cand.append(Path(os.path.dirname(sys.executable)) / exe)
-
     # Remove duplicates preserving order
     seen = set()
     uniq: list[Path] = []
@@ -102,7 +94,7 @@ def _candidates(exe: str) -> list[Path]:
 def find_ffmpeg_paths() -> Tuple[Optional[Path], Optional[Path]]:
     """Return paths to (ffmpeg, ffprobe) or (None, None) if not found.
 
-    Order: project/ffmpeg > PATH > per-user app data cache > PyInstaller bundle.
+    Order: project/ffmpeg > PATH > per-user app data cache.
     """
     ffmpeg = next((p for p in _candidates(_exe_name("ffmpeg")) if p.exists()), None)
     ffprobe = next((p for p in _candidates(_exe_name("ffprobe")) if p.exists()), None)
@@ -255,7 +247,7 @@ def _show_missing_dialog() -> Optional[bool]:
 def ensure_ffmpeg(allow_download: bool = True) -> Tuple[Optional[Path], Optional[Path]]:
     """Ensure ffmpeg/ffprobe are available.
 
-    Search order: project bundle > PATH > per-user app data cache > PyInstaller bundle.
+    Search order: project bundle > PATH > per-user app data cache.
     If not found and allow_download and Tk is available, prompt to download to that cache.
     Prepends the chosen bin directory to PATH for this process.
     """

@@ -1,7 +1,6 @@
 """Main window composition root: wires the feature views together and owns the app lifecycle."""
 from __future__ import annotations
 import os
-import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -21,16 +20,17 @@ from ..db.connection import DB_FILE
 from ..services.session_service import DatabasePrepareError
 from ..utils.app_paths import get_encrypted_db_file
 from ..utils.backup import backup_databases, try_restore_if_missing_or_corrupt
+from ..utils.console_log import configure_console_logging, log_info
 
 DEV_FRESH_START = False  # False: preserve DB between runs (enable real login flow)
 
 
 def resource_path(relative_path: str) -> str:
-    """Get absolute path to a resource: works for dev, PyInstaller, and Nuitka builds.
+    """Get absolute path to a resource: works for dev and Nuitka builds.
 
-    The Nuitka branch used to read ``os.path.dirname(sys.executable)``, which is
-    wrong on Windows onefile builds specifically: Nuitka's own onefile bootstrap
-    leaves ``sys.executable`` pointing at the original launcher .exe (wherever the
+    This used to read ``os.path.dirname(sys.executable)``, which is wrong on
+    Windows onefile builds specifically: Nuitka's own onefile bootstrap leaves
+    ``sys.executable`` pointing at the original launcher .exe (wherever the
     user downloaded it, e.g. Downloads) rather than at the temp directory the
     payload was actually extracted to -- confirmed by a user's build looking for
     ``images/image.png`` inside their Downloads folder and failing. This is a
@@ -41,12 +41,10 @@ def resource_path(relative_path: str) -> str:
     the unpacked tree (verified here for both modes), which is what the Nuitka
     user manual itself recommends for finding bundled files. This module lives
     at ``src/gui/app.py``, so two levels up from its ``__file__`` is the same
-    root that ``--include-data-dir=...=images`` in build_nuitka.py and the
-    PyInstaller spec both bundle ``images/`` under.
+    root that ``--include-data-dir=...=images`` in build_nuitka.py bundles
+    ``images/`` under.
     """
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base_path = sys._MEIPASS  # PyInstaller onefile
-    elif globals().get("__compiled__"):
+    if globals().get("__compiled__"):
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))  # Nuitka standalone/onefile
     else:
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # src/
@@ -155,6 +153,8 @@ def build_app_ui(ctx: AppContext) -> None:
 
 def run() -> None:
     """Main GUI entry point (initial launch)."""
+    configure_console_logging()
+    log_info("DOTformat starting up")
     root = tk.Tk()
     ctx = AppContext(root=root)
     # Attempt to restore databases if missing/corrupted

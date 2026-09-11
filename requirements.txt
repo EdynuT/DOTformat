@@ -93,5 +93,4 @@ pycryptodome
 # AES EAX + PBKDF2 for full database file encryption
 
 # --- Build tool ---
-pyinstaller
 nuitka

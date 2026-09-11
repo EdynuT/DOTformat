@@ -1,12 +1,14 @@
-"""PDF Manager view: convert to DOCX/PNG, or add a password to a PDF."""
+"""PDF Manager view: owns every dialog; all business logic lives in
+``services.pdf_service.PdfService`` (reached via ``ctx.pdf_service``).
+"""
 from __future__ import annotations
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from ..context import AppContext
-from ..widgets.progress import run_with_progress
-from ...models.pdf_manager import pdf_to_docx, pdf_to_png, protect_pdf
+from ..widgets.progress import run_with_progress_status
+from ...services.job_runner import OperationCancelled
 from ...utils.user_settings import get_setting, set_setting
 
 
@@ -106,7 +108,7 @@ def _ask_dpi(parent) -> int | None:
 def pdf_manager_action(ctx: AppContext) -> None:
     """Opens a window with options for PDF management: convert to DOCX, convert to PNG, or add password."""
     root = ctx.root
-    conversion_service = ctx.conversion_service
+    service = ctx.pdf_service
     pdf_win = tk.Toplevel(root)
     pdf_win.title("PDF Manager")
     pdf_win.geometry("320x240")
@@ -124,17 +126,17 @@ def pdf_manager_action(ctx: AppContext) -> None:
         docx_file = filedialog.asksaveasfilename(title="Save DOCX as", defaultextension=".docx", initialfile=default_docx_name, initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("DOCX File", "*.docx")])
         if not docx_file:
             return
+
+        def work(report, set_status, cancel_event):
+            return service.to_docx(pdf_file, docx_file, cancel_event, report, set_status, username=ctx.current_user)
+
         try:
-            success, msg = run_with_progress(root, "Converting PDF to DOCX", lambda _: pdf_to_docx(pdf_file, docx_file), auto=True)
-            if success:
-                conversion_service.log_success("pdf_to_docx", pdf_file, docx_file, username=ctx.current_user)
-                messagebox.showinfo("Success", msg, parent=pdf_win)
-            else:
-                conversion_service.log_error("pdf_to_docx", pdf_file, msg, username=ctx.current_user)
-                messagebox.showerror("Error", msg, parent=pdf_win)
+            msg = run_with_progress_status(root, "Converting PDF to DOCX", work)
+            messagebox.showinfo("Success", msg, parent=pdf_win)
+        except OperationCancelled:
+            messagebox.showinfo("Cancelled", "PDF to DOCX conversion was cancelled.", parent=pdf_win)
         except Exception as e:
-            conversion_service.log_error("pdf_to_docx", pdf_file, str(e), username=ctx.current_user)
-            messagebox.showerror("Error", f"Unexpected error: {e}", parent=pdf_win)
+            messagebox.showerror("Error", str(e), parent=pdf_win)
 
     def to_png():
         pdf_win.lift()
@@ -148,17 +150,17 @@ def pdf_manager_action(ctx: AppContext) -> None:
         dpi = _ask_dpi(pdf_win)
         if dpi is None:
             return
+
+        def work(report, set_status, cancel_event):
+            return service.to_png(pdf_file, output_dir, dpi, cancel_event, report, set_status, username=ctx.current_user)
+
         try:
-            success, msg = run_with_progress(root, "Exporting pages as PNG", lambda _: pdf_to_png(pdf_file, output_dir, dpi), auto=True)
-            if success:
-                conversion_service.log_success("pdf_to_png", pdf_file, output_dir, username=ctx.current_user)
-                messagebox.showinfo("Success", msg, parent=pdf_win)
-            else:
-                conversion_service.log_error("pdf_to_png", pdf_file, msg, username=ctx.current_user)
-                messagebox.showerror("Error", msg, parent=pdf_win)
+            msg = run_with_progress_status(root, "Exporting pages as PNG", work)
+            messagebox.showinfo("Success", msg, parent=pdf_win)
+        except OperationCancelled:
+            messagebox.showinfo("Cancelled", "PDF to PNG export was cancelled.", parent=pdf_win)
         except Exception as e:
-            conversion_service.log_error("pdf_to_png", pdf_file, str(e), username=ctx.current_user)
-            messagebox.showerror("Error", f"Unexpected error: {e}", parent=pdf_win)
+            messagebox.showerror("Error", str(e), parent=pdf_win)
 
     def add_password():
         pdf_win.lift()
@@ -166,33 +168,10 @@ def pdf_manager_action(ctx: AppContext) -> None:
         if not pdf_file:
             return
         # Early check: if PDF is already protected, block and return to main UI
-        try:
-            import fitz  # type: ignore
-            try:
-                d = fitz.open(pdf_file)
-                needs_pass = getattr(d, 'needs_pass', False)
-                try:
-                    d.close()
-                except Exception:
-                    pass
-            except Exception:
-                needs_pass = True
-            if needs_pass:
-                messagebox.showerror("Protected PDF", "This PDF is already password-protected.", parent=pdf_win)
-                pdf_win.destroy()
-                return
-        except Exception:
-            try:
-                import PyPDF2  # type: ignore
-                r = PyPDF2.PdfReader(pdf_file)
-                if getattr(r, 'is_encrypted', False):
-                    messagebox.showerror("Protected PDF", "This PDF is already password-protected.", parent=pdf_win)
-                    pdf_win.destroy()
-                    return
-            except Exception:
-                messagebox.showerror("Protected PDF", "This PDF appears protected.", parent=pdf_win)
-                pdf_win.destroy()
-                return
+        if service.is_pdf_protected(pdf_file):
+            messagebox.showerror("Protected PDF", "This PDF is already password-protected.", parent=pdf_win)
+            pdf_win.destroy()
+            return
         password = simpledialog.askstring("PDF Password", "Enter a password for the PDF (leave blank for no password):", show='*', parent=pdf_win)
         if password is None:
             return
@@ -200,39 +179,25 @@ def pdf_manager_action(ctx: AppContext) -> None:
         output_pdf = filedialog.asksaveasfilename(title="Save protected PDF as", defaultextension=".pdf", initialfile="protected.pdf", initialdir=(get_setting("last_dir_pdf") or ""), filetypes=[("PDF File", "*.pdf")])
         if not output_pdf:
             return
+
         if password == "":
-            try:
-                def _copy(_):
-                    with open(pdf_file, "rb") as src, open(output_pdf, "wb") as dst:
-                        dst.write(src.read())
-                    return True, f"PDF saved without password at: {output_pdf}"
-                success, msg = run_with_progress(root, "Saving PDF", _copy, auto=True)
-                if success:
-                    conversion_service.log_success("pdf_copy", pdf_file, output_pdf, username=ctx.current_user)
-                    messagebox.showinfo("Success", msg, parent=pdf_win)
-                else:
-                    conversion_service.log_error("pdf_copy", pdf_file, msg, username=ctx.current_user)
-                    messagebox.showerror("Error", msg, parent=pdf_win)
-            except Exception as e:
-                conversion_service.log_error("pdf_copy", pdf_file, str(e), username=ctx.current_user)
-                messagebox.showerror("Error", f"Failed to save PDF: {e}", parent=pdf_win)
+            def work(report, set_status, cancel_event):
+                return service.copy_without_password(pdf_file, output_pdf, cancel_event, report, set_status, username=ctx.current_user)
+            title = "Saving PDF"
+            cancelled_msg = "Saving PDF was cancelled."
         else:
-            try:
-                def _prot(_):
-                    ok, msg = protect_pdf(pdf_file, password, output_pdf)
-                    if not ok:
-                        raise RuntimeError(msg)
-                    return True, msg
-                success, msg = run_with_progress(root, "Protecting PDF", _prot, auto=True)
-                if success:
-                    conversion_service.log_success("pdf_protect", pdf_file, output_pdf, username=ctx.current_user)
-                    messagebox.showinfo("Success", msg, parent=pdf_win)
-                else:
-                    conversion_service.log_error("pdf_protect", pdf_file, msg, username=ctx.current_user)
-                    messagebox.showerror("Error", msg, parent=pdf_win)
-            except Exception as e:
-                conversion_service.log_error("pdf_protect", pdf_file, str(e), username=ctx.current_user)
-                messagebox.showerror("Error", f"Failed to protect PDF: {e}", parent=pdf_win)
+            def work(report, set_status, cancel_event):
+                return service.protect(pdf_file, password, output_pdf, cancel_event, report, set_status, username=ctx.current_user)
+            title = "Protecting PDF"
+            cancelled_msg = "PDF protection was cancelled."
+
+        try:
+            msg = run_with_progress_status(root, title, work)
+            messagebox.showinfo("Success", msg, parent=pdf_win)
+        except OperationCancelled:
+            messagebox.showinfo("Cancelled", cancelled_msg, parent=pdf_win)
+        except Exception as e:
+            messagebox.showerror("Error", str(e), parent=pdf_win)
 
     ttk.Label(pdf_win, text="Choose a PDF operation:").pack(pady=10)
     ttk.Button(pdf_win, text="Convert PDF to DOCX", command=to_docx).pack(fill="x", padx=30, pady=5)

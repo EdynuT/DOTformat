@@ -6,7 +6,7 @@
 # the user's machine — that build already bundles its own Python interpreter
 # and every dependency, so installing it is just "unpack, symlink, done".
 pkgname=dotformat-bin
-pkgver=3.0.1
+pkgver=3.1.0
 pkgrel=1
 pkgdesc="Multi-format file converter and toolkit (audio, video, image, PDF, QR code, background removal) with a local-first, encrypted, multi-user GUI"
 arch=('x86_64' 'aarch64')
@@ -16,11 +16,19 @@ provides=('dotformat')
 conflicts=('dotformat')
 depends=('gtk-update-icon-cache' 'hicolor-icon-theme')
 options=('!strip')
-source=("https://github.com/EdynuT/DOTformat/releases/download/v${pkgver}/DOTformat-v${pkgver}-linux-nuitka-standalone.tar.gz"
-        "dotformat.desktop")
-# Regenerate after each release: sha256sum on the actual downloaded files.
-sha256sums=('0cce1dd1194165cd13b5f009ded9aca7a1907348d0777419607651f7a983e6ea'
-            '9789b633139fd487fcb3679a01a99a744bc637ea91488220bb8ab76197339385')
+# `arch` claimed aarch64 support before this release, but the tarball below was
+# always the x86_64 build -- makepkg has no arch check on plain source=(), so
+# installing on aarch64 would have silently fetched a binary that can't run
+# there. release.yml now builds both natively, so each arch gets its own
+# per-arch source/sha256sums array instead.
+source=("dotformat.desktop")
+sha256sums=('9789b633139fd487fcb3679a01a99a744bc637ea91488220bb8ab76197339385')
+
+source_x86_64=("https://github.com/EdynuT/DOTformat/releases/download/v${pkgver}/DOTformat-v${pkgver}-x86_64-linux-nuitka-standalone.tar.gz")
+sha256sums_x86_64=('77d808efd9c0dd956fd36494641bfda359f6a18cced0b9bdbbac553f7f000027')
+
+source_aarch64=("https://github.com/EdynuT/DOTformat/releases/download/v${pkgver}/DOTformat-v${pkgver}-aarch64-linux-nuitka-standalone.tar.gz")
+sha256sums_aarch64=('71fd9386c405f7cba32b2f0cad45740dbb2ec820a6f7b2f6ed7bb7ea687b2fac')
 
 package() {
   install -dm755 "${pkgdir}/opt/dotformat"

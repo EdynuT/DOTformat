@@ -4,9 +4,25 @@ DOTFORMAT is a Python project developed by Edynu to handle various file conversi
 
 ## Version
 
-**Current Version:** 3.0.1
+**Current Version:** 3.1.0
 
 ## Changelog
+
+### 3.1.0
+
+- **Real cancel button for long operations.** Image conversion/vectorization, video conversion, background removal, PDF operations, and audio transcription now show a "Cancelar" button while running. Clicking it kills the operation outright (not a cooperative flag it has to notice) and deletes whatever partial output file it had started writing; files already finished before the cancel stay on disk. Video cancellation terminates the underlying ffmpeg process directly; every other feature runs its work in an isolated child process so a cancel can kill it even mid C‑extension call (vectorizing an image, running the AI background‑removal model, etc.), which a simple in‑process flag can't interrupt.
+
+- **Console logging.** Running DOTformat from a terminal now shows only the app's own timestamped log lines (`DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL`, via Python's standard `logging` module) instead of being mixed with unrelated output from third‑party libraries.
+
+- **Internal architecture split.** All six features (Image, Video, Background removal, PDF, Audio, QR Code) now follow the same layering: the GUI never talks to business logic directly, it goes through a thin `src/services/` layer (cancellation, logging) which in turn calls the real conversion logic in `src/models/`. No visible effect on functionality, but keeps the UI and the algorithms independently testable and easier to extend.
+
+- Fixed: mouse‑wheel zoom in the Background Remover's manual eraser only worked on Windows, not Linux (X11 sends scroll as button clicks instead of the `delta`‑carrying wheel event Windows uses).
+
+- Fixed: the manual eraser's on‑screen brush preview circle now scales with the current zoom level, so it visually matches where the brush will actually land; the real erase radius is unchanged.
+
+- Fixed: running `python setup.py` before ever installing anything crashed with `ModuleNotFoundError: No module named 'llvmlite'`. `setup.py` no longer imports the Nuitka build module at the top of the file — that module needs packages that don't exist yet on a first run — and instead invokes it as a subprocess once the virtual environment actually has them installed.
+
+- **PyInstaller support removed.** Nuitka is now the only build backend, everywhere: `setup.py`'s build prompt, the release workflow, and `requirements.txt`. If you need a PyInstaller build for some reason, you're on your own — download PyInstaller yourself and build against the source.
 
 ### 3.0.1
 
@@ -248,15 +264,23 @@ DOTFORMAT/
 │   ├── repositories/           # Data access layer
 │   │   ├── conversion_repository.py
 │   │   └── user_repository.py
-│   ├── services/               # Business logic
+│   ├── services/               # Thin GUI<->models communication layer: cancellation, logging
 │   │   ├── conversion_service.py
 │   │   ├── user_service.py     # Registration, auth, admin user management
 │   │   ├── session_service.py  # Session state + DB encryption lifecycle
 │   │   ├── auth_service.py     # Login lockout policy, last-user persistence
-│   │   └── log_service.py      # History filtering/sorting/export/maintenance
-│   ├── models/                 # Feature scripts
+│   │   ├── log_service.py      # History filtering/sorting/export/maintenance
+│   │   ├── job_runner.py       # Isolated-process execution so cancel can kill a job outright
+│   │   ├── image_service.py
+│   │   ├── video_service.py
+│   │   ├── background_service.py
+│   │   ├── pdf_service.py
+│   │   ├── audio_service.py
+│   │   └── qr_service.py
+│   ├── models/                 # Business logic/algorithms (no Tkinter)
 │   │   ├── audio_to_text.py
 │   │   ├── convert_image.py
+│   │   ├── svg_converter.py
 │   │   ├── convert_video.py
 │   │   ├── pdf_manager.py
 │   │   ├── qrcode_generator.py
@@ -264,6 +288,7 @@ DOTFORMAT/
 │   └── utils/                  # Helpers/utilities
 │       ├── app_paths.py        # Per-OS data directory (Windows/Linux)
 │       ├── ffmpeg_finder.py    # FFmpeg discovery/download (Windows/Linux)
+│       ├── console_log.py      # Terminal logging (stdlib logging, app-only output)
 │       └── build_nuitka.py     # Nuitka build steps used by setup.py
 ├── CHANGELOG.md                # Program detailed changes and updates
 ├── LICENSE                     # Project license
@@ -271,7 +296,7 @@ DOTFORMAT/
 ├── PRIVACY_POLICY.md           # Privacy Policy
 ├── README.md                   # Project documentation
 ├── requirements.txt            # Python dependencies
-├── setup.py                    # Setup/build script (venv + exe, PyInstaller or Nuitka)
+├── setup.py                    # Setup/build script (venv + exe, Nuitka)
 └── TERMS.md                    # Terms & Conditions
 ```
 
@@ -300,10 +325,7 @@ On Linux:
 python3 setup.py
 ```
 
-This creates a virtual environment, downloads FFmpeg automatically if it isn't already available, installs dependencies, and then asks which build backend to use:
-
-- **1 – PyInstaller:** generates a fresh `DOTformat.spec` for your OS and asks whether to build a single file (one executable, simplest to distribute) or a one‑folder build (`dist/DOTformat/`, a launcher plus its dependencies — starts faster since nothing needs to be unpacked first).
-- **2 – Nuitka (recommended):** compiles a standalone, self‑contained folder under `nuitka/main.dist/`. You'll be asked whether to enable low‑memory mode, useful on machines with limited RAM.
+This creates a virtual environment, downloads FFmpeg automatically if it isn't already available, installs dependencies, and then asks whether to build an executable with Nuitka. You'll be asked whether to build a single file (one executable, simplest to distribute) or a standalone folder (`nuitka/main.dist/`, a launcher plus its dependencies — starts faster since nothing needs to be unpacked first), and whether to enable low‑memory mode, useful on machines with limited RAM.
 
 Notes:
 - Default data location (databases, backups, FFmpeg cache):
@@ -314,7 +336,7 @@ Notes:
 
 ### Prebuilt downloads
 
-Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds DOTformat with both PyInstaller and Nuitka on Windows and Linux and publishes everything to that tag's [GitHub Release](https://github.com/EdynuT/DOTformat/releases): a PyInstaller and a Nuitka single-file build (`.exe` on Windows, a plain executable on Linux) for each backend, plus standalone `.zip`/`.tar.gz` builds.
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds DOTformat with Nuitka on Windows and Linux and publishes everything to that tag's [GitHub Release](https://github.com/EdynuT/DOTformat/releases): a single-file build (`.exe` on Windows, a plain executable on Linux) plus a standalone `.zip`/`.tar.gz` build, for each OS.
 
 Arch Linux users will be able to install the `dotformat-bin` package from the AUR once published (see [packaging/aur/](./packaging/aur/)), which installs the prebuilt Nuitka Linux build.
 
@@ -338,7 +360,7 @@ MIT License
 Background Remover works best when running from source (or a Nuitka build, which bundles it) with the extra AI libraries installed:
 
 - Install: `pip install rembg numpy opencv-python-headless`
-- A minimal PyInstaller build may intentionally skip these heavy packages; if they're missing or broken, the app will show a message explaining the exact error and how to enable the feature.
+- If they're missing or broken in your environment, the app will show a message explaining the exact error and how to enable the feature.
 
 I will try to implement them in future builds, but I am currently dealing with stability issues.
 

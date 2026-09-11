@@ -4,6 +4,26 @@ All notable changes will be documented in this file.
 
 The format is inspired by Keep a Changelog and Semantic Versioning.
 
+## [3.1.0] - 2026-09-10
+
+### Added
+- Real cancellation for every long-running operation. Image conversion/vectorization (`src/services/image_service.py`), background removal (`background_service.py`), PDF operations (`pdf_service.py`), and audio transcription (`audio_service.py`) now run their work inside an isolated `multiprocessing.Process` via a new `src/services/job_runner.py`; a cancel click `terminate()`s (then `kill()`s after a grace period) that process, which stops even a blocking C-extension/library call already in progress — something a cooperative `threading.Event` cannot do. Video conversion terminates its underlying `ffmpeg` `subprocess.Popen` directly, since it's already a real OS process. Cancelling deletes whatever partial output file the interrupted job had started writing, while files already completed earlier in a batch are kept.
+- `src/gui/widgets/progress.py`: `run_with_progress`/`run_with_progress_status` now show a "Cancelar" button and re-enable the window's close button as a cancel action, for any caller whose `work_fn` opts in by declaring the extra `cancel_event` parameter (checked via `inspect.signature`, so un-migrated callers keep working unchanged).
+- `src/utils/console_log.py`: console logging via the standard `logging` module. The app's own `"dotformat"` logger gets a dedicated, timestamped `StreamHandler` (`%(asctime)s [%(levelname)s] %(message)s`) at the standard `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL` levels, while the root logger is raised above `CRITICAL` so third-party libraries that log without configuring their own handler (`onnxruntime`, `numba`, etc.) no longer clutter the terminal.
+- `src/models/remove_background.py`: `erase_circle()`, extracted from the manual eraser's inline math so it can be called identically from both the interactive editor and the isolated-process cancellation path.
+
+### Changed
+- Completed the GUI → service → model architectural split across all six feature modules (Image, Video, Background removal, PDF, Audio, QR Code), matching the convention already used for auth/session/history. `src/gui/views/*` now only builds dialogs and calls into `src/services/*`; `src/services/*` is a thin orchestration layer (cancellation via `job_runner`, DB + console logging) with no business logic of its own; the actual conversion/algorithm code lives in `src/models/*`, which stays free of any Tkinter import. `src/models/convert_image.py`, previously GUI-coupled, was rewritten as pure logic; `src/gui/views/image_view.py`, `video_view.py`, `background_view.py`, `pdf_view.py`, `audio_view.py`, and `qr_view.py` were rewritten accordingly.
+- `setup.py`'s build prompt no longer asks which backend to use — it's Nuitka only now — and its yes/no prompts were consolidated behind a single `_ask_yes_no(question, default)` helper that correctly applies the shown `[Y/n]`/`[y/N]` default when the user just presses Enter.
+
+### Fixed
+- Mouse-wheel zoom in the Background Remover's manual eraser only worked on Windows. Linux/X11 has no wheel event with a signed `delta` — it sends scroll as `<Button-4>`/`<Button-5>` clicks instead, which the handler now also binds and reads correctly.
+- The manual eraser's on-screen brush preview circle is now drawn at `brush_radius * zoom_factor`, so it visually tracks the current zoom level; the actual erase radius passed to `erase_circle()` is unchanged, since only the preview should scale.
+- `python setup.py` crashing with `ModuleNotFoundError: No module named 'llvmlite'` on a first run, before any dependency was installed. `setup.py` previously imported `build_nuitka`/`build_pyinstaller` at module level, and `build_nuitka.py` itself imports `llvmlite`/`numba`/`pymatting`/`pymupdf` at module level to locate their install paths for bundling — making the bootstrap script require packages that only the bootstrap itself was supposed to install. `setup.py` no longer imports either build module directly; it invokes the build as a subprocess (`python -m src.utils.build_nuitka ...`) using the venv's own interpreter, once that venv actually has the packages installed. (Also surfaced, and left as-is: `build_nuitka()`'s `venv_path` parameter is unused — the function relies on already running inside the target venv rather than reading from it.)
+
+### Removed
+- PyInstaller support, entirely: `src/utils/build_pyinstaller.py`, the `pyinstaller` entry in `requirements.txt`, both PyInstaller build/package steps in `.github/workflows/release.yml` (Windows and Linux), and the `1-pyinstaller` option from `setup.py`'s build prompt. Nuitka's own manual-Windows-DLL and low-memory workarounds already made it the practical default, and it now builds a strict superset of what DOTformat ships (onefile and standalone, both platforms), so keeping a second backend around no longer paid for the extra CI time and PKGBUILD/`.spec` maintenance. The `sys._MEIPASS`-based (PyInstaller-only) branch in `resource_path()` (`src/gui/app.py`) and the equivalent candidate path in `src/utils/ffmpeg_finder.py` were removed as dead code as a result.
+
 ## [3.0.1] - 2026-09-08
 
 ### Added

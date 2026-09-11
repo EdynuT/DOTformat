@@ -10,7 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import fitz
 import llvmlite
 import numba
 import pymatting
@@ -23,7 +22,6 @@ import pymupdf
 # a venv's site-packages.
 EXTRA_LIBS = {
     "pymupdf": Path(pymupdf.__file__).resolve().parent,
-    "fitz": Path(fitz.__file__).resolve().parent,
     "numba": Path(numba.__file__).resolve().parent,
     "llvmlite": Path(llvmlite.__file__).resolve().parent,
     "pymatting": Path(pymatting.__file__).resolve().parent,
@@ -33,8 +31,7 @@ EXTRA_LIBS = {
 # above) that need their *.dist-info metadata shipped alongside — some packages (e.g.
 # pymatting/__init__.py: `importlib.metadata.version(__name__)`) read their own version
 # via importlib.metadata at import time, which only works if that metadata directory is
-# discoverable on sys.path. fitz is deliberately absent: it reads pymupdf's __version__
-# directly (`from pymupdf import __version__`) rather than querying metadata itself.
+# discoverable on sys.path.
 DIST_INFO_NAMES = ("pymupdf", "numba", "llvmlite", "pymatting")
 
 
@@ -71,7 +68,6 @@ def _extra_libs_include_args() -> list[str]:
 
 def build_nuitka(
     project_root,
-    venv_path=None,
     low_memory: bool = False,
     onefile: bool = False,
     app_version: str = "0.0.0.0",
@@ -123,7 +119,6 @@ def build_nuitka(
         # kdtree.py" at call time. Shipping pymatting as real files on disk (like the
         # others here) keeps that source-introspection working.
         "--nofollow-import-to=pymupdf",
-        "--nofollow-import-to=fitz",
         "--nofollow-import-to=numba",
         "--nofollow-import-to=llvmlite",
         "--nofollow-import-to=pymatting",
@@ -157,9 +152,8 @@ def build_nuitka(
         str(project_root / "main.py"),
     ]
     if sys.platform == "win32":
-        # Nuitka allocates a console window by default on Windows (unlike PyInstaller,
-        # which our spec already builds with console=False) — without this, DOTformat's
-        # Tkinter window opens with a visible cmd.exe window alongside it.
+        # Nuitka allocates a console window by default on Windows — without this,
+        # DOTformat's Tkinter window opens with a visible cmd.exe window alongside it.
         cmd.insert(-1, "--windows-console-mode=disable")
     if low_memory:
         cmd.insert(-1, "--low-memory")

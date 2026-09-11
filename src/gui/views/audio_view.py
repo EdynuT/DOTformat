@@ -1,12 +1,15 @@
-"""Audio-to-text transcription view."""
+"""Audio-to-text transcription view: owns every dialog; all business logic
+lives in ``services.audio_service.AudioService`` (reached via
+``ctx.audio_service``).
+"""
 from __future__ import annotations
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from ..context import AppContext
-from ..widgets.progress import run_with_progress
-from ...models.audio_to_text import convert_audio_to_text, SUPPORTED_EXTENSIONS
+from ..widgets.progress import run_with_progress_status
+from ...services.job_runner import OperationCancelled
 from ...utils.user_settings import get_setting, set_setting
 
 
@@ -52,14 +55,14 @@ def _ask_language(parent) -> str | None:
 def audio_to_text_action(ctx: AppContext) -> None:
     """Transcribe selected audio file to text file."""
     root = ctx.root
-    conversion_service = ctx.conversion_service
+    service = ctx.audio_service
 
     lang = _ask_language(root)
     if not lang:
         return
 
     # Build a filter string from SUPPORTED_EXTENSIONS to keep GUI and backend in sync
-    patterns = ";".join(f"*{ext}" for ext in SUPPORTED_EXTENSIONS)
+    patterns = ";".join(f"*{ext}" for ext in service.SUPPORTED_EXTENSIONS)
     audio_file = filedialog.askopenfilename(
         title="Select the audio file",
         initialdir=(get_setting("last_dir_audio") or ""),
@@ -73,22 +76,17 @@ def audio_to_text_action(ctx: AppContext) -> None:
     text_file = filedialog.asksaveasfilename(title="Save transcription as", defaultextension=".txt", initialfile=default_text_name, initialdir=(get_setting("last_dir_audio") or ""), filetypes=[("Text File", "*.txt")])
     if not text_file:
         return
+
+    def work(report, set_status, cancel_event):
+        return service.transcribe(audio_file, text_file, lang, cancel_event, report, set_status, username=ctx.current_user)
+
     try:
-        success, msg = run_with_progress(
-            root,
-            "Transcribing audio",
-            lambda report: convert_audio_to_text(audio_file, text_file, lang, progress=report),
-            auto=False
-        )
-        if success:
-            conversion_service.log_success("audio_to_text", audio_file, text_file, username=ctx.current_user)
-            messagebox.showinfo("Success", msg)
-        else:
-            conversion_service.log_error("audio_to_text", audio_file, msg, username=ctx.current_user)
-            messagebox.showerror("Error", msg)
+        msg = run_with_progress_status(root, "Transcribing audio", work)
+        messagebox.showinfo("Success", msg)
+    except OperationCancelled:
+        messagebox.showinfo("Cancelled", "Audio transcription was cancelled.")
     except Exception as e:
-        conversion_service.log_error("audio_to_text", audio_file, str(e), username=ctx.current_user)
-        messagebox.showerror("Error", f"Unexpected error: {e}")
+        messagebox.showerror("Error", str(e))
 
 
 __all__ = ["audio_to_text_action"]

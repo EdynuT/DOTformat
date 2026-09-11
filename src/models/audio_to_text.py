@@ -1,11 +1,10 @@
 import os
 import tempfile
-from typing import List
+from typing import Callable, List, Optional
 import speech_recognition as sr
 from pydub import AudioSegment
 from src.utils.ffmpeg_finder import ensure_ffmpeg
 import subprocess
-import platform
 
 # On Windows, suppress flashing console windows spawned by pydub/ffmpeg by
 # monkeypatching pydub.utils.Popen to inject no-window startup flags.
@@ -51,15 +50,19 @@ def _resolve_ffmpeg_exe() -> str | None:  # backwards-compat wrapper
     ffmpeg, _ = ensure_ffmpeg(allow_download=True)
     return str(ffmpeg) if ffmpeg else None
 
-def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progress=None):
+def convert_audio_to_text(
+    audio_file, text_file, language: str = 'pt-BR',
+    report: Optional[Callable[[float], None]] = None,
+    set_status: Optional[Callable[[str], None]] = None,
+):
     """
     Converts an audio file to text using speech recognition.
     If the audio is not in WAV format, it is first converted using pydub.
-    
+
     Parameters:
       - audio_file: Path to the input audio.
       - text_file: Path where the transcription will be saved.
-      
+
     Returns:
       A tuple (True, success message) if successful, or (False, error message).
     """
@@ -91,6 +94,9 @@ def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progre
     if audio_extension not in SUPPORTED_EXTENSIONS:
         return False, f"Audio format not supported: {audio_extension}"
 
+    if set_status:
+        set_status("Preparing audio…")
+
     # Helper: normalize and convert to 16kHz mono 16-bit PCM WAV
     def _to_wav_16k_mono(src_path: str) -> str | None:
         try:
@@ -107,7 +113,7 @@ def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progre
             tmp_wav.close()
             seg.export(tmp_wav_path, format='wav')
             return tmp_wav_path
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             return None
         except Exception:
             return None
@@ -157,10 +163,12 @@ def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progre
         try:
             total = max(1, len(chunks))
             # Initial progress
-            if progress:
-                try: progress(0)
+            if report:
+                try: report(0)
                 except Exception: pass
             for i, seg in enumerate(chunks):
+                if set_status:
+                    set_status(f"Transcribing chunk {i + 1}/{total}…")
                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".part{i}.wav")
                 tmp_paths.append(tmp.name)
                 tmp.close()
@@ -172,10 +180,10 @@ def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progre
                 if piece:
                     collected.append(piece)
                 # Report chunk-based progress
-                if progress:
+                if report:
                     try:
                         pct = min(99.0, ((i + 1) / total) * 100.0)
-                        progress(pct)
+                        report(pct)
                     except Exception:
                         pass
         finally:
@@ -190,8 +198,8 @@ def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progre
         with open(text_file, 'w', encoding='utf-8') as f:
             f.write(final_text)
         # Snap to 100% at the very end
-        if progress:
-            try: progress(100)
+        if report:
+            try: report(100)
             except Exception: pass
         return True, f"Transcription saved successfully at '{text_file}'!"
     except FileNotFoundError as e:
@@ -209,3 +217,18 @@ def convert_audio_to_text(audio_file, text_file, language: str = 'pt-BR', progre
                 os.remove(wav_path)
         except Exception:
             pass
+
+
+def convert_audio_to_text_job(audio_file, text_file, language, *, report=None, set_status=None, set_current_file=None):
+    """Adapts :func:`convert_audio_to_text` to job_runner's raise-on-failure contract."""
+    ok, msg = convert_audio_to_text(audio_file, text_file, language, report=report, set_status=set_status)
+    if not ok:
+        raise RuntimeError(msg)
+    return msg
+
+
+__all__ = [
+    "SUPPORTED_EXTENSIONS",
+    "convert_audio_to_text",
+    "convert_audio_to_text_job",
+]
